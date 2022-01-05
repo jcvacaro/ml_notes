@@ -1,0 +1,495 @@
+\documentclass{article}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage[nodisplayskipstretch]{setspace}
+\setstretch{.5}
+
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows,shapes.arrows,positioning,calc,mindmap,decorations.pathreplacing,fit,matrix}
+
+% Math
+\newcommand{\norm}[1]{\lVert#1\rVert}
+\newcommand{\given}{\mid}
+\newcommand{\half}{\frac{1}{2}}
+\DeclareMathOperator{\Gaussian}{\mathcal{N}}
+\DeclareMathOperator{\E}{\mathbb{E}}
+\DeclareMathOperator{\R}{\mathbb{R}}
+\DeclareMathOperator{\Reals}{\mathbb{R}}
+
+\begin{document}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Probability}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Conditional Probability}
+
+\begin{align*}
+    P(B \given A) = \frac{P(A,B)}{P(A)}
+\end{align*}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Multiplication Rule}
+
+\begin{align*}
+    P(A,B) &= P(A) P(B \given A) && \parbox{7cm}{Probability that first event occurs and 
+                                    that second event occurs conditioned on the first.} \\
+           &= P(B) P(A \given B) && \text{We can choose which event occurs first.}
+\end{align*}
+
+With 3 events.
+
+\begin{align*}
+    P(A,B,C) &= P((A,B),C) && \text{Consider $A,B$ as a single event.} \\
+             &= P(A,B) P(C \given A,B) && \text{Apply the rule for $((A,B),C)$.} \\
+             &= P(A) P(B \given A) P(C \given A,B) && \text{Apply the rule only for $(A,B)$.}
+\end{align*}
+
+Generalizing: probability that the first event occurs times the product of conditional probabilities that the $A_ith$ event occurs given that all previous events already occured.
+
+\begin{align*}
+    P(A_1,\dots,A_n) &= P(A_1) \prod_2^n P(A_i \given A_1,\dots,A_{i-1})
+\end{align*}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Total Probability Theorem}
+
+\begin{itemize}
+    \item Partition of sample space into $A_1, \dots, A_n$.
+    \item Disjoint partitions: $\sum_i^n P(A_i) = 1$.
+    \item Goal: Obtain $P(B)$ for all possible scenarios/partitions.
+\end{itemize}
+
+\begin{align*}
+    P(B) &= \sum_i^n P(A_i) P(B \given A_i) && \text{Weighted average by $P(A_i)$.} \\
+         &= \int_i P(A_i) P(B \given A_i) && \text{For infinite sequence.}
+\end{align*}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Random Variable}
+
+\begin{itemize}
+    \item It associates a value (a number) to every possible outcome of a probabilistic experiment.
+    \item Mathematically: A function from the sample space to the real numbers.
+    \item It can take discrete or continuous values.
+    \item A function of one or several random variables is also a random variable.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Expectation}
+
+\begin{align*}
+    \E[X] &= \sum_x x p(x)
+\end{align*}
+
+\begin{itemize}
+    \item Mean of a random variable.
+    \item Interpretation: Average in large number of independent repetitions of the experiment.
+    \item Caution: If we have an infinite sum, it needs to be well-defined. 
+          We assume the infinite series as absolutely convergent $\sum_x |x| p(x) < \infty$.
+\end{itemize}
+
+Properties:
+
+\begin{itemize}
+    \item If $X \geq 0$, then $\E[X] \geq 0$.
+    \item If $a \leq X \leq b$, then $a \leq \E[X] \leq b$.
+    \begin{align*}
+        \E[X] &= \sum_x x p(x) && \text{Expectation definition.} \\
+              &\geq \sum_x a p(x) && \text{All values of $x$ at least as large as $a$.} \\
+              &= a \sum_x p(x) && \sum_x p(x) = 1. \\
+              &= a \times 1 \\
+              &= a
+    \end{align*}
+    \item If $c$ is a constant, $\E[c]=c$.
+    \begin{align*}
+        \E[c] = c \times p(c) = c \times 1 = c && \text{Only one possibility for $c$.}
+    \end{align*}
+    \item Linearity.
+    \begin{align*}
+        \E[aX + b] &= a \E[X] + b \\
+        \E[g(X)] &= g(\E[X]) && \text{Only if $g(X)$ is linear.}
+    \end{align*}
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Expected Value Rule}
+
+Let $X$ be a random value, and let $Y=g(X)$.
+
+\begin{align*}
+    \E[Y] = \E[g(X)] = \sum_x g(x) p(x)
+\end{align*}
+
+The advantage of using the expected value rule instead of expectation is that it only involves the PMF/PDF of the original random value.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Bayesian Probability}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{itemize}
+    \item The Language of Uncertainty
+    \item Deriving the laws of probability theory from rational degrees of belief
+    \item Must make some assumptions about how data was generated
+    \item There always exists some underlying process that generated observations
+    \item Make our assumptions about underlying process explicit
+    \item Want to infer underlying process (find distribution that generated data)
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Bayes Rule}
+
+\begin{align*}
+    P(X=x \given Y=y) 
+    &= \frac{P(X=x,Y=y)}{P(Y=y)} && \text{Conditional rule.} \\
+    &= \frac{P(Y=y \given X=x) P(X=x)}{P(Y=y)} && \text{Multiplication rule.} \\
+    &= \frac{P(Y=y \given X=x) P(X=x)}{\sum_x P(Y=y \given X=x) P(X=x)} && \text{Total probability theorem.} \\
+    Posterior  &= \frac{Likelihood \times Prior}{Model Evidence} && \text{In words.} \\
+    &\propto Likelihood \times Prior && \parbox{4cm}{Denominator is a constant, independent of $X$.}
+\end{align*}
+
+\begin{itemize}
+    \item Prior distribution: $p(X)$ represents what we know about possible values of $X$ before we see any data.
+          If $X$ has $K$ possible values, then $p(X)$ is a vector of $K$ probabilities, that sum to 1.
+    \item Observation distribution: $p(Y|X=x)$ represents the distribution over the possible outcomes $Y$ we expect to see if $X=x$.
+    \item Likelihood: When we evaluate the observation distribution at a point corresponding to the actual observations, $y$, we get the function $p(Y=y|X=x)$.
+          Note that this is a function of $x$, since $y$ is fixed, but it is not a probability distribution, since it does not sum to one.
+    \item Marginal likelihood/Model Evidence: Multiplying the prior by the likelihood function gives the unnormalized joint distribution $p(X=x,Y=y)$. 
+          We can convert this into a normalized distribution by dividing by $p(Y=y)$, which is known as the marginal likelihood, since it is computed by marginalizing over the unknown $X$.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Modelling of Functions}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsubsection{Linear Regression}
+
+Linear regression [Gauss, 1809].
+
+\begin{itemize}
+    \item Given a set of $N$ input-output pairs ${(x_1,y_1),\dots,(x_N,y_N)}$
+    \item Assumes exists linear function mapping vectors $x_i \in R^Q$ to $y_i \in R^D$
+    \begin{itemize}
+        \item with $y_i$ potentially corrupted with observation noise
+    \end{itemize}
+    \item Model is linear transformation of inputs: $f(x) = Wx + b; W \in R^{D \times Q}, b \in R^D$
+    \item Different parameters $W,b$ define different linear transformations
+    \begin{itemize}
+        \item Aim: Find parameters that (eg) minimise $\frac{1}{N} \sum_i \norm{y_i - (Wx_i + b)}^2$
+    \end{itemize}
+\end{itemize}
+
+But relation between $x$ and $y$ need not be linear.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsubsection{Linear Basis Function Regression}
+
+Linear basis function regression [Gergonne, 1815; Smith, 1918].
+
+\begin{itemize}
+    \item Input $x$ fed through $K$ fixed scalar-valued non-linear transformation $\phi_k(x)$.
+    \item Collect into a feature vector $\phi(x) = [\phi_1(x),\dots,\phi_K(x)]$.
+    \item Do linear regression with $\phi(x)$ vector instead of $x$ itself.
+    \item With scalar input $x$, transformations can be:
+    \begin{itemize}
+        \item Wavelets parameterized by $k$: $cos(k \pi x)e^{\frac{-x^2}{2}}$.
+        \item Polynomials of degrees $k$: $x^k$.
+        \item Sinusoidals with various frequencies: $sin(kx)$.
+    \end{itemize}
+    \item When $\phi_k(x) := x_k$ and $K = Q$, basis function regression is linear regression.
+\end{itemize}
+
+Basis functions often assumed fixed and orthogonal to each other (optimal combination is sought).
+But need not be fixed and mutually orthogonal.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsubsection{Parameterized Basis Functions}
+
+Parameterized basis functions [Bishop, 2006; many others].
+
+\begin{itemize}
+    \item Eg. basis functions $\phi_k^{W_k,b_k}$.
+    \item Where scalar-valued function $\phi_k$ is applied to inner-product $W_k^T x + b_k$.
+    \begin{itemize}
+        \item $\phi_k$ often defined to be identical for all $k$ (only params change).
+        \item Eg. $\phi_k(.) = tanh(.)$, giving $\phi_k^{W_k,b_k}(x) = tanh(W_k^T x + b_k)$.
+    \end{itemize}
+    \item $feature vector = basis function outputs = input to linear transformation$.
+    \item In vector form:
+    \begin{itemize}
+        \item $W_1$ a matrix of dimensions $Q \times K$.
+        \item $b_1$ a vector with $K$ elements.
+        \item $\phi_k^{W_1,b_1}(x) = \phi(W_1 x + b_1)$
+        \item $W_2$ a matrix of dimensions $K \times D$.
+        \item $b_2$ a vector with $D$ elements.
+        \item Model output: $f^{W_1,b_1,W_2,b_2}(x) = \phi^{W_1,b_1}(x)W_2 + b_2$
+    \end{itemize}
+    \item Want to find $W_1,b_1,W_2,b_2$ that minimise $\frac{1}{N} \sum_i ||y_i - f^{W_1,b_1,W_2,b_2}(x_i)||^2$
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsubsection{Hierarchy of Parameterized Basis Functions}
+
+Hierarchy of Parameterized basis functions [Rumelhart et al., 1985].
+
+Called NNs for historical reasons.
+Compose multiple basis function layers.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsubsection{Example}
+
+Assumptions:
+
+\begin{itemize}
+    \item We'll use deep nets, and denote $W$ to be the weight matrix of the last layer and $b$ the bias of last layer.
+    \item Ffor the moment) look only at last layer $W$, everything else fixed (i.e. weights other than $W$ do not change).
+    \item Assume that $y$ is scalar, so W is $K \times 1$.
+    \item Assume that output layer's $b$ is zero.
+    \item Then $f^W(x) = \sum_k W_k \phi_k(x) = W^T \phi(x)$ with $\phi(x)$ a frozen feature vector for some NN.
+    \item Nature chose $W$ which defines a function $f^W(x) := W^T\phi(x)$
+    \item Generated function values with inputs $x_1,\dots,x_N; f_n := f^W(x_n)$
+    \item Corrupted function values with noise (also called observation noise)
+    \begin{itemize}
+        \item $y_n := f_n(x) + \epsilon_n, \epsilon_n \sim \mathcal{N}(0,\sigma^2)$ additive Gaussian noise w/param $\sigma^2$
+    \end{itemize}
+    \item We're given observations $\{(x_1,y_1),\dots,(x_N,y_N)\}$ and $\sigma=1$
+    \item Put prior distribution over params $W$
+    \begin{itemize}
+        \item $p(W) = \mathcal{N}(W;0_K,s^2I_K)$
+    \end{itemize}
+    \item likelihood: conditioned on $W$ generate observation by adding noise
+    \begin{itemize}
+        \item $p(y|W,x) = \mathcal{N}(y;W^T\phi(x), \sigma^2)$
+    \end{itemize}
+\end{itemize}
+
+We want to infer $W$ (find distribution over $W$ given $\mathcal{D}$).
+
+Analytic inference with functions:
+
+\begin{align*}
+    p(W|x,y) &= \frac{p(y|x,W) p(W|x)}{p(y|x)}  && \text{Bayes rule} \\
+             &= \frac{p(y|x,W) p(W)}{p(y|x)}    && \text{Prior is $p(W)$ according to our model} \\
+             &\propto p(y|x,W) p(W)             && \text{$p(y|x)$ does not depend on $W$} \\
+             &= \left[ \prod_n \mathcal{N}(y_n;W^T\phi(x_n), \sigma^2) \right] \mathcal{N}(W;0,s^2I) && From model definition \\
+             &= \prod_n c \exp^{-\frac{1}{2} \sigma^{-2} (y_n - W^T\phi(x))^2} c \exp^{-\frac{1}{2} s^{-2} W^TW} && \text{Plugin normal distribution} \\
+             &\propto \exp^{-\frac{1}{2} \sum_n \sigma^{-2} (y_n - W^T\phi(x))^2 + s^{-2} W^TW} && \text{Keep single exp base and sum the exponents} \\
+             &= \sum_n \sigma^{-2} (-2 y_n W^T\phi(x)) + (W^T\phi(x))^T (W^T\phi(x)) + s^{-2} W^TW && \text{$W$ terms} \\
+             &= \sum_n \sigma^{-2} (-2 y_n W^T\phi(x)) + (W^T\phi(x) \phi(x)^TW) + s^{-2} W^TW && \phi(x)^TW = W^T\phi(x) \\
+             &= \sigma^{-2}\sum_n (-2 y_n W^T\phi(x)) + \sigma^{-2}\sum_n W^T\phi(x) \phi(x)^TW + s^{-2} W^TW && \text{Split into two sums} \\
+             &= W^T \left( \sigma^{-2} \sum_n \phi(x)\phi(x)^T + s^{-2}I_K \right) W -2 W^T \sigma^{-2} \sum_n y_n \phi(x) && \text{Pull out $W^T$ and $W$}
+\end{align*}
+
+We know that:
+
+\begin{align*}
+    P(W|D) &= \mathcal{N}(\mu, \Sigma) \\
+           &= (W - \mu)^T \Sigma^{-1} &= (W - \mu) \\
+           &= W^T \Sigma^{-1} W - 2 W^T \Sigma^{-1} \mu + \mu^T \Sigma^{-1} \mu
+\end{align*}
+
+We can apply pattern matching only with the $W$ terms to obtain the posterior parameters:
+
+\begin{align*}
+    \Sigma^{-1} &= \left( \sigma^{-2} \sum_n \phi(x)\phi(x)^T + s^{-2}I_K \right)^{-1} \\
+                &= (\sigma^{-2} \phi(X)^T \phi(X) + s^{-2}I_K)^{-1} && \text{vector form} \\
+    \mu         &= \Sigma^{-1} \sigma^{-2} \sum_n y_n \phi(x) \\
+                &= \Sigma^{-1} \sigma^{-2} \phi(X)^T Y              && \text{vector form}
+\end{align*}
+
+Analytic prediction with functions: How do we predict function values $y^*$ for new $x^*$?
+
+\begin{align*}
+    p(y^*|x^*,X,Y) 
+    &= \int p(y^*,W|x^*,X,Y) dW && \text{Total probability theorem: $W$.} \\
+    &= \int p(y^*|x^*,W,X,Y) p(W|X,Y) dW && \text{Multiplication rule: $y^*,W$.} \\
+    &= \int p(y^*|x^*,W) p(W|X,Y) dW && \text{Model assumptions.} \\
+    &= \int likelihood \times posterior && \text{In text form.} \\
+    &= \int \Gaussian(\mu^*,\Sigma^*) && \text{Prediction is Gaussian because Likelihood and posterior are Gaussian.} \\
+    \mu^* &= \E_{\Gaussian(y^*|x^*,X,Y)}[y^*] \\
+    &= \int p(y^*|x^*,X,Y) y^* dy^* \\
+    &= \int y^* \left( \int p(y^*|x^*,W) p(W|X,Y) dw \right) dy^* \\
+    &= \int \underbrace{\left( \int y^* p(y^*|x^*,W) dy^* \right)}_{\E_{likelihood}[y^*]=W^T\phi(x^*)} p(W|X,Y) dw \\
+    &= \int W^T\phi(x^*) p(W|X,Y) dw && \text{Applying $\E_{likehood}[y^*]$.} \\
+    &= \underbrace{\left( \int W^T p(W|X,Y) dw \right)}_{\E_{posterior}[W]^T=\mu^T} \phi(x^*) && \phi(x^*) \text{dos not depend on $W$.} \\
+    &= \mu^T \phi(x^*)
+\end{align*}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Architectures}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Faster R-CNN}
+
+RPN + Fast R-CNN
+
+The variable-length problem is solved in the RPN by using anchors: fixed sized reference bounding boxes which are placed uniformly throughout the original image. 
+Instead of having to detect where objects are, we model the problem into two parts. For every anchor, we ask:
+
+* Does this anchor contain a relevant object?
+* How would we adjust this anchor to better fit the relevant object?
+
+Finally, comes the R-CNN module, which uses that information to:
+
+* Classify the content in the bounding box (or discard it, using “background” as a label).
+* Adjust the bounding box coordinates (so it better fits the object).
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsubsection{Feature Extraction}
+
+\begin{align*}
+    \phi_{VGG} &= f_{VGG}^{l=13}(image) && \text{Features from Conv layer 13.}
+\end{align*}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsubsection{Region Proposal Networks (RPN)}
+
+Region Proposal Networks (RPN) Takes an image (of any size) as input and outputs a set of rectangular object proposals, each with an objectness score. 
+To generate region proposals, we slide a small network over the convolutional feature map output by the last shared convolutional layer. 
+This small network takes as input an $n \times n$ spatial window of the input convolutional feature map. 
+We model this process with a fully convolutional network (FCN).
+
+\begin{align*}
+    \phi_{RPN} &= f_{ReLU}(f_{Conv3\times3}^{cin=512,cout=512,p=1}(\phi_{VGG}))) && \phi_{VGG}\in\Reals^{60 \times 40 \times 512} \\
+    p &= f_{Conv1\times1}^{cin=512,cout=2k}(\phi_{RPN})) && \text{The cls layer.} \Reals^{60 \times 40 \times 512} \\ \\
+    t &= f_{Conv1\times1}^{cin=512,cout=4k}(\phi_{RPN})) && \text{The reg layer.} \Reals^{60 \times 40 \times 512} \\
+\end{align*}
+
+For simplicity we implement the cls layer as a two-class softmax layer. 
+Alternatively, one may use logistic regression to produce $k$ scores.
+
+The RPN output layer has $2.8 \times 10^4$ parameters $(512 \times (4 + 2) \times 9).
+
+Considering the feature projection layers, our proposal layers’ parameter count is $3 \times 3 \times 512 \times 512 + 512 \times 6 \times 9 = 2.4 \times 10^6$.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsubsection{Anchors}
+
+Anchors are fixed bounding boxes that are placed throughout the image with different sizes and ratios that are going to be used for reference when first predicting object locations.
+
+Each anchor is:
+
+\begin{itemize}
+    \item Centered at each sliding window position in the convolutional feature map.
+    \begin{itemize}
+        \item Even though anchors are defined based on the convolutional feature map, the final anchors reference the original image.
+        \item Since we only have convolutional and pooling layers, the dimensions of the feature map will be proportional to those of the original image. 
+              Mathematically, if the image was $W \times H$, the feature map will end up $W/r \times H/r$ where $r$ is called subsampling ratio. 
+              If we define one anchor per spatial position of the feature map, the final image will end up with a bunch of anchors separated by $r$ pixels. 
+              In the case of VGG, $r=16$.
+    \end{itemize}
+    \item Associated with a scale and aspect ratio.
+          By default we use $3$ scales and $3$ aspect ratios, yielding $k=9$ anchors at each sliding position. 
+    \item There will be $WHk$ anchors in total because there are $W \times H$ valid sliding window positions in the $W \times H$ convolutional feature map.
+          In the paper $WHk \approx 2400$ because the $13$ VGG layer is $600 \times 400$ and $9$ anchors are defined.
+\end{itemize}
+
+Problems with bounding boxes:
+
+\begin{itemize}
+    \item Images may have different sizes and aspect ratios, having a good model trained to predict raw coordinates $(x_{min},y_{min},x_{max},y_{max})$ can turn out to be very complicated.
+    \item Another problem is invalid predictions: when predicting $x_{min},x_{max}$ we have to somehow enforce that $x_{min} \leq x_{max}$.
+\end{itemize}
+
+Solution: learning to predict offsets from reference boxes. 
+We take a reference box $x_{center},y_{center},width,height$, and learn to predict $\Delta_{x_{center}},\Delta_{y_{center}},\Delta_{width},\Delta_{height}$, which are usually small values that tweak the reference box to better fit what we want.
+The goal is to adjust the anchors with the predicted offsets to better fit the object it’s predicting.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsubsection{Training}
+
+loss 
+The distance vector from the center of the ground truth box to the anchor box is taken and normalized to the size of the anchor box. 
+That is the target delta vector for the center. 
+The size target is the log of the ratio of size of each dimension of the ground truth over anchor box. 
+The loss is calculated by using an expression called Smooth L1 Loss .
+
+Then, we randomly sample those anchors to form a mini batch of size 256 — trying to maintain a balanced ratio between foreground and background anchors.
+
+The RPN uses all the anchors selected for the mini batch to calculate the classification loss using binary cross entropy. Then, it uses only those minibatch anchors marked as foreground to calculate the regression loss. For calculating the targets for the regression, we use the foreground anchor and the closest ground truth object and calculate the correct \DeltaΔ needed to transform the anchor into the object.
+
+Using dynamic batches can be challenging for a number of reasons. Even though we try to maintain a balanced ratio between anchors that are considered background and those that are considered foreground, that is not always possible. Depending on the ground truth objects in the image and the size and ratios of the anchors, it is possible to end up with zero foreground anchors. In those cases, we turn to using the anchors with the biggest IoU to the ground truth boxes. This is far from ideal, but practical in the sense that we always have foreground samples and targets to learn from.
+
+To generate labels for RPN classification ( e.g. foreground , background , and ignore ), IOU of all the bounding boxes against all the ground truth boxes are taken. 
+Then the IOUs are used to label the 256 ROIs as foreground and background, and ignored. 
+These labels are then used to calculate the cross-entropy loss, after first removing the ignored (-1) class boxes.
+
+We assign a positive label to two kinds of anchors: (i) the
+anchor/anchors with the highest Intersection-overUnion (IoU) overlap with a ground-truth box, or (ii) an
+anchor that has an IoU overlap higher than 0.7 with
+any ground-truth box. Note that a single ground-truth
+box may assign positive labels to multiple anchors.
+Usually the second condition is sufficient to determine
+the positive samples; but we still adopt the first
+condition for the reason that in some rare cases the
+second condition may find no positive sample. We
+assign a negative label to a non-positive anchor if its
+IoU ratio is lower than 0.3 for all ground-truth boxes.
+Anchors that are neither positive nor negative do not
+contribute to the training objective.
+
+\begin{align*}
+    L({p_i},{t_i}) = \frac{1}{N_{cls}} \sum_i L_{cls}(p_i,p_i^*) + \lambda \frac{1}{N_{reg}} \sum_i L_{reg}(t_i,t_i^*)
+\end{align*}
+
+i is the index of an anchor in a mini-batch 
+pi is the predicted probability of anchor i being an object. 
+p∗i is the ground-truth label 
+ti is a vector representing the 4 parameterized coordinates of the predicted bounding box
+t∗i is that of the ground-truth box associated with a positive anchor.
+
+The classification loss Lcls is log loss over two classes (object vs. not object). 
+For the regression loss, we use Lreg (ti, t∗i) = R(ti − t∗i) where R is the robust loss function (smooth L1) defined in [2]. 
+The term p∗i Lreg means the regression loss is activated only for positive anchors (p∗i = 1) 
+
+The outputs of the cls and reg layers consist of {pi} and {ti} respectively
+
+the cls term in Eqn.(1) is normalized by the mini-batch size (i.e., Ncls = 256) 
+the reg term is normalized by the number of anchor locations (i.e., Nreg ∼ 2, 400).
+By default we set λ = 10, and thus both cls and reg terms are roughly equally weighted. 
+
+\begin{align*}
+    t_x = \frac{(x - x_a)}{w_a} && x,x_a \text{are the predicted and anchor center coordinates.} \\
+    t_y = \frac{(y - y_a)}{h_a} && y,y_a \text{are the predicted and anchor center coordinates.} \\
+    t_w = \log(\frac{w}{w_a}) && w,w_a \text{are the predicted and anchor width.} \\
+    t_h = \log(\frac{h}{h_a}) && h,h_a \text{are the predicted and anchor height.} \\
+    t_x^* = \frac{(x^* - x_a)}{w_a} && x^*,x_a \text{are the ground truth and anchor center coordinates.} \\
+    t_y^* = \frac{(y^* - y_a)}{h_a} && y^*,y_a \text{are the ground truth and anchor center coordinates.} \\
+    t_w^* = \log(\frac{w^*}{w_a}) && w^*,w_a \text{are the ground truth and anchor width.} \\
+    t_h^* = \log(\frac{h^*}{h_a}) && h^*,h_a \text{are the ground truth and anchor height.}
+\end{align*}
+
+training 
+
+Image-centric” sampling strategy
+Each mini-batch arises from a single image that contains many positive and negative example anchors. 
+It is possible to optimize for the loss functions of all anchors, but this will bias towards negative samples as they are dominate.
+Instead, we randomly sample 256 anchors in an image to compute the loss function of a mini-batch, where the sampled positive and negative anchors have a ratio of up to 1:1. 
+If there are fewer than 128 positive samples in an image, we pad the mini-batch with negative ones.
+
+
+\end{document}
+
+%https://colab.research.google.com/drive/1oL7SOdjb3xHdf8ufXrnDHPCw-Psx0wgw
+%Remember: products, ratios, marginals, and conditionals of Gaussians are Gaussian!
+
+%\begin{tikzpicture}[
+%    thick,node distance=1em,
+%    msty/.style={matrix of nodes,ampersand replacement=\&,column sep=1em,nodes={draw,align=center}},
+%    esty/.style args={#1}{column #1/.style={nodes={text width=10em}}},
+%    rsty/.style args={#1}{row #1/.style={nodes={draw=white}}},
+%]
+%    \matrix (m1) [msty,esty/.list={2}]{
+%        Image \& {Feature\\Extractor} \& Conv2d \& ReLU \\
+%        Image \& Feature Extractor \& Conv2d \& ReLU \\
+%    };
+%    \matrix (m2) [msty,rsty/.list={1,4},right=of m1] {
+%        Conv2d \\ Conv2d \\[2em] Conv2d \\ Conv2d \\
+%    };
+%\end{tikzpicture}

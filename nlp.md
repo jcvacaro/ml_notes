@@ -587,4 +587,133 @@ https://arxiv.org/pdf/1910.10683.pdf
         * WMT English to German, French, and Romanian translation. 
 
 * Input and Output Format (2.4)
+    * we cast all of the tasks we consider into a text-to-text format
+    * the model is trained with a maximum likelihood objective (using teacher forcing (Williams and Zipser, 1989)) regardless of the task. 
+    * To specify which task the model should perform, we add a task-specific (text) prefix to the original input sequence before feeding it to the model.
+    * check Figure 1 for example string formats
+    * For text classification tasks (NLI), the model simply predicts a single word corresponding to the target label. 
+        * Note that an issue arises if our model outputs text on a text classification task that does not correspond to any of the possible labels (for example if the model outputs?hamburger when the only possible labels for a task were entailment, neutral, or contradiction). 
+        * In this case, we always count the model?s output as wrong, though we never observed this behavior in any of our trained models. 
+    * Note that the choice of text prefix used for a given task is essentially a hyperparameter; we found that changing the exact wording of the prefix had limited impact and so did not perform extensive experiments into different prefix choices. 
+    * We were able to straightforwardly cast all of the tasks we considered into a text-to-text format with the exception of STS-B, which is a regression task where the goal is to predict a similarity score between 1 and 5. 
+        * * We found that most of these scores were annotated in increments of 0.2, so we simply rounded any score to the nearest increment of 0.2 
+        * converted the result to a literal string representation of the number 
+        * At test time, if the model outputs a string corresponding to a number between 1 and 5, we convert it to a floating-point value; otherwise, we treat the model?s prediction as incorrect. 
+        * This effectively recasts the STS-B regression problem as a 21-class classification problem.
 
+* inspired in previous work 
+    * McCann et al. (2018) propose the Natural Language Decathlon
+        * a benchmark that uses a consistent question-answering format for a suite of ten NLP tasks.
+        * it stipulates that all models must be multi-task, i.e. are able to simultaneously tackle all of the tasks at once. 
+        * We instead allow for separately fine-tuning the model on each individual task and 
+        * use short task prefixes instead of an explicit question-answer format.
+    *  Radford et al. (2019) evaluate the zero-shot learning capabilities of language models by feeding some input to the model as a prefix and then autoregressively sampling an output. 
+        * For example, automatic summarization is done by feeding in a document followed by the text ?TL;DR:? (short for ?too long, didn?t read?, a common abbreviation) and then the summary is predicted via autoregressive decoding. 
+        * We mainly consider models that explicitly process an input with an encoder before generating an output with a separate decoder and 
+        * we focus on transfer learning rather than zero-shot learning. 
+    * Keskar et al. (2019b) unify many NLP tasks as span extraction
+        * where text corresponding to possible output choices are appended to the input and the model is trained to extract the input span corresponding to the correct choice. 
+        * In contrast, our framework also allows for generative tasks like machine translation and abstractive summarization where it is not possible to enumerate all possible output choices.
+
+* training
+    * always train using standard maximum likelihood, i.e. using teacher forcing (Williams and Zipser, 1989) and a cross-entropy loss
+    * For optimization, we use AdaFactor (Shazeer and Stern, 2018). 
+    * At test time, we use greedy decoding (i.e. choosing the highest-probability logit at every timestep).
+    * We pre-train each model for 2^19 = 524,288 steps on C4 before fine-tuning. 
+    * We use a maximum sequence length of 512 and a batch size of 128 sequences. 
+    * Whenever possible, we?pack multiple sequences into each entry of the batch10 so that our batches contain roughly 2^16 = 65,536 tokens. 
+    * In total, this batch size and number of steps corresponds to pre-training on 2^35 ? 34B tokens. 
+    * This is considerably less than BERT (Devlin et al., 2018), which used roughly 137B tokens, or RoBERTa (Liu et al., 2019c), which used roughly 2.2T tokens. 
+    * During pre-training, we use an ?inverse square root? learning rate schedule:
+        * This sets a constant learning rate of 0.01 for the first 104 steps, then exponentially decays the learning rate until pre-training is over. 
+    * We also experimented with using a triangular learning rate (Howard and Ruder, 2018), which produced slightly better results but requires knowing the total number of training steps ahead of time. 
+    * During fine-tuning
+        * fine-tuned for 2^18 = 262,144 steps on all tasks. 
+        * we continue using batches with 128 length-512 sequences  (i.e. 2^16 tokens per batch). 
+        * We use a constant learning rate of 0.001 
+        * We save a checkpoint every 5,000 steps
+        * report results on the model checkpoint corresponding to the highest validation performance. 
+
+* vocabulary
+    * We use SentencePiece (Kudo and Richardson, 2018) to encode text as WordPiece tokens (Sennrich et al., 2015; Kudo, 2018). 
+    * For all experiments, we use a vocabulary of 32,000 wordpieces. 
+    * This vocabulary was shared across both the input and output of our model. 
+    * Note that our vocabulary makes it so that our model can only process a predetermined, fixed set of languages.
+
+* objective
+     * it has recently been shown that ?denoising? objectives (Devlin et al., 2018; Taylor, 1953) (also called ?masked language modeling?) produce better performance than causal language modeling objective for pre-training.
+    * Corrupting Spans (3.3.4) is slightly better than masking with better performance by predicting shorter targets.
+     * The approach we have used so far makes an i.i.d. decision for each input token as to whether to corrupt it or not. 
+     * When multiple consecutive tokens have been corrupted, they are treated as a ?span? and a single unique mask token is used to replace the entire span.
+     * Corrupting spans was also previously considered as a pre-training objective for BERT, where it was found to improve performance (Joshi et al., 2019).
+ 
+================================================================================
+PMI-MASKING: PRINCIPLED MASKING OF CORRELATED SPANS
+https://arxiv.org/abs/2010.01825
+================================================================================
+
+ * In BERT, 15% of tokens are chosen to be masked uniformly at random. 
+ * It is the random choice of single tokens that we address in this paper: we show that this approach is suboptimal and offer a principled alternative.
+
+* The advantage of Whole-Word Masking over Random-Token Masking is relatively modest for standard vocabularies, because out-of-vocabulary words are rare. 
+* However, the tokenization of words is a very special case of a much broader statistical linguistic phenomenon of collocation: 
+    * the cooccurrence of series of tokens at levels much greater than would be predicted simply by their individual frequencies in the corpus. 
+    * There are millions of collocated word n-grams ? multi-word expressions, phrases, and other common word combinations?whereas there are only tens of thousands of words in frequent use. 
+
+* Several prior works have considered the idea of masking across spans longer than a single word.
+    * Sun et al. (2019) proposed Knowledge Masking 
+        * which jointly masks tokens comprising entities and phrases, as identified by external parsers. 
+        * While extending the scope of Whole-Word Masking, the restriction to specific types of correlated n-grams, along with the reliance on imperfect tools for their identification, has limited the gains achievable by this approach. 
+    * SpanBERT of Joshi et al. (2020) introduced Random-Span Masking
+        * which masks word spans of lengths sampled from a geometric distribution at random positions in the text. 
+        * it was shown to consistently outperform Knowledge Masking, is simple to implement, and inspired prominent MLMs (Raffel et al., 2019). 
+        * However, while Random-Span Masking increases the chances of masking collocations, with high probability the selected spans include only part of a collocation along with unrelated neighboring tokens, potentially wasting resources on spans that provide little signal.
+
+* EXISTING MASKING APPROACHES (3.1)
+    * Random-Token Masking (Devlin et al., 2019a) The original BERT implementation 
+        * selects tokens for masking independently at random
+        * where 80% of the 15% chosen tokens are replaced with [MASK], 10% are replaced with a random token, and 10% are kept unchanged.
+    * Whole-Word Masking (Devlin et al., 2019b) 
+        * The sequence of input tokens is segmented into units corresponding to whole words. 
+        * Tokens for masking are then chosen by sampling entire units at random until the masking budget is met. 
+        * Following Devlin et al. (2019a), for 80%/10%/10% of the units, all tokens are replaced with [MASK]tokens/ random tokens/ the original tokens, respectively.
+    * Random-Span Masking (Joshi et al., 2020) 
+        * Contiguous random spans are selected iteratively until the 15% masking budget is spent. 
+        * At each iteration, a span length (in words) is sampled from a geometric distribution Geo(0:2), and capped at 10 words. 
+        * Then, the starting point for the span to be masked is randomly selected. 
+        * Replacement with [MASK], random, or original tokens is done as above, where spans constitute the units.
+
+* PMI: FROM BIGRAMS TO n-GRAMS (3.2)
+    * modeling such correlations in large corpora was widely studied in computational linguistics (Zuidema (2006); Ramisch et al. (2012); inter alia). 
+    * Particularly relevant to our work is the notion of Pointwise Mutual Information (Fano, 1961), which quantifies how often two events occur, compared with what we would expect if they were independent. 
+    * Define the probability of any n-gram as the number of its occurrences in the corpus divided by the number of all the n-grams in the corpus. 
+    * PMI leverages these probabilities to give a natural measure of collocation of bigrams: how surprising the bigram w1w2 is, given the unigram probabilities of w1 and w2. 
+    * formula (mutual information) - compares the actual empirical probability of the n-gram in the corpus with the probability it would have if its components occurred independently. (ratio)
+    * problem: an n-gram's Naive-PMI will be high if it contains a segment with high PMI, even if that segment is not particularly correlated with the rest of the n-gram. 
+    * solution: Intuitively, this measure effectively discards the contribution of high PMI segments; the minimum in Eq. 3 implies that an n-gram?s collocation score is given by its weakest link, i.e., by the segmentation that is closest to separability. 
+
+* PMI MASKING - MASKING CORRELATED n-GRAMS
+    * assembling a list of n-grams as a masking vocabulary in parallel to the 30K-token vocabulary. 
+    * we make use of the entire pretraining corpus for compiling a list of collocations. 
+    * We consider word n-grams of lengths 2?5 having over 10 occurrences in the corpus, and include the highest ranking collocations over the corpus, as measured via our proposed PMIn measure (Eq. 3). 
+    * Noticing that the PMIn measure is sensitive to the length of the n-gram, we assemble per-length rankings for each n in {2; 3; 4; 5}, and integrate these rankings to compose the masking vocabulary. 
+    * we chose the masking vocabulary size to be 800K, for which approximately half of pretraining corpus tokens were identified as part of some correlated n-gram.
+    * After composing the masking vocabulary, we treat its entries as units to be masked together. 
+    * All input tokens not identified with entries from the masking vocabulary are treated independently as units for masking according to the Whole-Word Masking scheme. 
+    * After we segment the sequence of input tokens into units for masking, we then choose tokens for masking by sampling units uniformly at random until 15% of the tokens (the standard tokens of the 30K-token vocabulary) in the input are selected. 
+    * As in the prior methods, replacement with [MASK](80%), random (10%), or original (10%) tokens is done at the unit level.
+
+* *PRETRAINING
+    * We trained uncased models with a 30K-sized vocabulary that we constructed over WIKIPEDIA +BOOKCORPUS via the WordPiece Tokenizer used in BERT. 
+    * We omitted the Next Sentence Prediction task, as it was shown to be superfluous (Joshi et al., 2020),
+    * trained only on the Masked Language Model task during pretraining. 
+    * We trained with a sequence length of 512 tokens, batch size of 256, and a varying number of steps detailed in Section 5. 
+    * For pretraining, after a warmup of 10; 000 steps we used a linear learning rate decay, therefore models that ran for a different overall amount of steps are not precisely comparable after a given amount of steps. 
+    * We set remaining parameters to values similar to those used in the original BERT pretraining, detailed in the appendix.
+
+* We show that PMI-Masking achieved even larger performance gains relative to the baselines when training over more data, by adding the 38GB OPENWEBTEXT (Gokaslan & Cohen, 2019) dataset, an open-source recreation of the WebText corpus described in Radford et al. (2019).
+
+================================================================================
+On Losses for Modern Language Models
+https://arxiv.org/abs/2010.01694
+================================================================================

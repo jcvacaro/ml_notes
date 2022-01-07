@@ -10,14 +10,14 @@ https://arxiv.org/abs/1907.11692
 *** Great summary of BERT ***
 
 Training Setup:
-BERT is optimized with Adam (Kingma and Ba, 2015) using the following parameters: β1 = 0.9, β2 = 0.999, ǫ = 1e-6 and L2 weight decay of 0.01. 
+BERT is optimized with Adam (Kingma and Ba, 2015) using the following parameters: Î˛1 = 0.9, Î˛2 = 0.999, ÇŤ = 1e-6 and L2 weight decay of 0.01. 
 The learning rate is warmed up over the first 10,000 steps to a peak value of 1e-4, and then linearly decayed. 
 BERT trains with a dropout of 0.1 on all layers and attention weights, and a GELU activation function (Hendrycks and Gimpel, 2016). 
 BERT models are pretrained for S = 1,000,000 updates, with minibatches containing B = 256 sequences of maximum length T = 512 tokens.
 
 RoBERTA follows BERT setup except for the peak learning rate and number of warmup steps, which are tuned separately for each setting. 
 We additionally found training to be very sensitive to the Adam epsilon term.
-We found setting β2 = 0.98 to improve stability when training with large batch sizes.
+We found setting Î˛2 = 0.98 to improve stability when training with large batch sizes.
 ROBERTA is pretrained with sequences of at most T = 512 tokens. 
 We train only with full-length sequences.
 We train with mixed precision floating point arithmetic on DGX-1 machines, each with 8 x 32GB Nvidia V100 GPUs interconnected by Infiniband.
@@ -56,8 +56,8 @@ Results show that weight-sharing has an effect on stabilizing network parameters
 Inter-sentence coherence loss:
 In addition to the masked language modeling (MLM) loss (Devlin et al., 2019), BERT uses an additional loss called next-sentence prediction (NSP). 
 NSP is a binary classification loss for predicting whether two segments appear consecutively in the original text, as follows: positive examples are created by taking consecutive segments from the training corpus; negative examples are created by pairing segments from different documents; positive and negative examples are sampled with equal probability. 
-However, subsequent studies (Yang et al., 2019; Liu et al., 2019) found NSP’s impact unreliable and decided to eliminate it. 
-We conjecture that the main reason behind NSP’s ineffectiveness is its lack of difficulty as a task, as compared to MLM. 
+However, subsequent studies (Yang et al., 2019; Liu et al., 2019) found NSPâs impact unreliable and decided to eliminate it. 
+We conjecture that the main reason behind NSPâs ineffectiveness is its lack of difficulty as a task, as compared to MLM. 
 ALBERT proposes a loss based primarily on coherence. 
 It uses a sentence-order prediction (SOP) loss.
 The SOP loss uses as positive examples the same technique as BERT (two consecutive segments from the same document), and as negative examples the same two consecutive segments but with their order swapped. This forces the model to learn finer-grained distinctions about discourse-level coherence properties. 
@@ -127,7 +127,7 @@ G (generator) is a MLM (mask language model).
 $p_G(z_t|x) = exp(e(x_t)^T h_G(x)_t) / sum_x^prime exp(e(x_t)^T h_G(x)_t)
 where e denotes token embeddings. 
 
-For a given position t, the discriminator predicts whether the token xt is “real,” i.e., that it comes from the data rather than the generator distribution, with a sigmoid output layer.
+For a given position t, the discriminator predicts whether the token xt is âreal,â i.e., that it comes from the data rather than the generator distribution, with a sigmoid output layer.
 $D(x, t) = sigmod(w^T h_D(x)_t)$
 
 The generator then learns to predict the original identities of the masked-out tokens. 
@@ -143,12 +143,12 @@ We minimize the combined loss
 min_{\theta_G, \theta_D} \sum_{x \pert X} L_{MLM}(x, \theta_G) + \lambda L_{Disc}(x, \theta_D)
 
 We approximate the expectations in the losses with a single sample. 
-We don’t back-propagate the discriminator loss through the generator (indeed, we can’t because of the sampling step). 
+We donât back-propagate the discriminator loss through the generator (indeed, we canât because of the sampling step). 
 After pre-training, we throw out the generator and fine-tune the discriminator on downstream tasks.
 
 Our model architecture and most hyperparameters are the same as BERT. 
 For fine-tuning on GLUE, we add simple linear classifiers on top of ELECTRA. 
-For SQuAD, we add the questionanswering module from XLNet on top of ELECTRA, which is slightly more sophisticated than BERT’s in that it jointly rather than independently predicts the start and end positions and has a “answerability” classifier added for SQuAD 2.0. 
+For SQuAD, we add the questionanswering module from XLNet on top of ELECTRA, which is slightly more sophisticated than BERTâs in that it jointly rather than independently predicts the start and end positions and has a âanswerabilityâ classifier added for SQuAD 2.0. 
 Some of our evaluation datasets are small, which means accuracies of fine-tuned models can vary substantially depending on the random seed. 
 We therefore report the median of 10 fine-tuning runs from the same pre-trained checkpoint for each result. 
 
@@ -195,11 +195,11 @@ this additional input allows the network to exploit information in the history.
 * Relative Positional Encoding is explained in section 3.3 
     * Problem: how can we keep the positional information coherent when we reuse the states? 
     * If we apply the original transformer positional encoding strategy to the hidden states, both tao and tao+1 sequence embeddings are associated with the same positional encoding U1:L. 
-      As a result, the model has no information to distinguish the positional difference between xτ,j and xτ+j. U is the positional encoding values.
+      As a result, the model has no information to distinguish the positional difference between xĎ,j and xĎ+j. U is the positional encoding values.
     * By injecting the relative distance dynamically into the attention score, the query vector can easily distinguish the representations of x_tao,j and x_tao+1,j from their different distances, making the state reuse mechanism feasible. 
     * Matrix R defines relative positional encoding, where the i-th row R_i indicates a relative distance of i between two positions. 
     * 3 changes to the original transformer attention equations
-        * replace all appearances of the absolute positional embedding Uj for computing key vectors in term (b) and (d) with its relative counterpart Ri−j.
+        * replace all appearances of the absolute positional embedding Uj for computing key vectors in term (b) and (d) with its relative counterpart Riâj.
         * Introduce a trainable parameter u to replace the query U_i W_q in term (c), and similarly, a second term v.in term (d).
           Since the query vector is the same for all query positions, it suggests that the attentive bias towards different words should remain the same regardless of the query position.
         * separate the two weight matrices Wk,E and Wk,R for producing the content-based key vectors and location-based key vectors respectively.
@@ -288,7 +288,7 @@ During transfer, we utilize task-specific input adaptations derived from travers
 
 * Supervised fine-tuning (3.2)
     * We assume a labeled dataset C, where each instance consists of a sequence of input tokens, x1, . . . , xm, along with a label y. 
-    * The inputs are passed through our pre-trained model to obtain the final transformer block’s activation h
+    * The inputs are passed through our pre-trained model to obtain the final transformer blockâs activation h
     * which is then fed into an added linear output layer with parameters Wy to predict y:
     * We additionally found that including language modeling as an auxiliary objective to the fine-tuning helped learning
     * check formula for the final loss
@@ -329,7 +329,7 @@ During transfer, we utilize task-specific input adaptations derived from travers
     * We add dropout to the classifier with a rate of 0.1. 
     * For most tasks, we use a learning rate of 6.25e-5 and a batchsize of 32. 
     * Our model finetunes quickly and 3 epochs of training was sufficient for most cases. 
-    * We use a linear learning rate decay schedule with warmup over 0.2% of training. λ was set to 0.5
+    * We use a linear learning rate decay schedule with warmup over 0.2% of training. Îť was set to 0.5
 
 * Natural Language Inference (NLI)
     * The task of natural language inference (NLI), also known as recognizing textual entailment, involves reading a pair of sentences and judging the relationship between them from one of entailment, contradiction or neutral. 
@@ -344,7 +344,7 @@ https://cdn.openai.com/better-language-models/language_models_are_unsupervised_m
   This suggests that multitask training may need just as many effective training pairs to realize its promise with current approaches. 
 * The current best performing systems on language tasks utilize a combination of pre-training and supervised finetuning. 
     * However, Recent work suggests that task-specific architectures are no longer necessary and transferring many self-attention blocks is sufficient (Radford et al., 2018) (Devlin et al., 2018).
-* We demonstrate language models can perform down-stream tasks in a zero-shot setting – without any parameter or architecture modification. 
+* We demonstrate language models can perform down-stream tasks in a zero-shot setting â without any parameter or architecture modification. 
 
 * Approach
     * Learning to perform a single task can be expressed in a probabilistic framework as estimating a conditional distribution p(output|input). 
@@ -372,7 +372,7 @@ https://cdn.openai.com/better-language-models/language_models_are_unsupervised_m
         * Layer normalization (Ba et al., 2016) was moved to the input of each sub-block, similar to a pre-activation residual network (He et al., 2016) 
         * an additional layer normalization was added after the final selfattention block. 
         * A modified initialization which accounts for the accumulation on the residual path with model depth is used. 
-        * We scale the weights of residual layers at initialization by a factor of 1/√N where N is the number of residual layers. 
+        * We scale the weights of residual layers at initialization by a factor of 1/âN where N is the number of residual layers. 
         * The vocabulary is expanded to 50,257. 
         * We also increase the context size from 512 to 1024 tokens 
         * a larger batchsize of 512 is used.
@@ -415,13 +415,13 @@ c) BART: Inputs to the encoder need not be aligned with decoder outputs, allowin
     * In total, BART contains roughly 10% more parameters than the equivalently sized BERT model.
 
 * pre-training
-    * BART is trained by corrupting documents and then optimizing a reconstruction loss—the cross-entropy between the decoder’s output and the original document.
+    * BART is trained by corrupting documents and then optimizing a reconstruction lossâthe cross-entropy between the decoderâs output and the original document.
     * it allows us to apply any type of document corruption. 
     * In the extreme case, where all information about the source is lost, BART is equivalent to a language model.
     * transformations
         * Token Masking: like BERT
         * Token Deletion: Random tokens are deleted from the input. In contrast to token masking, the model must decide which positions are missing inputs
-        * Text Infilling A number of text spans are sampled, with span lengths drawn from a Poisson distribution (λ = 3). 
+        * Text Infilling A number of text spans are sampled, with span lengths drawn from a Poisson distribution (Îť = 3). 
           Each span is replaced with a single [MASK] token. 
           0-length spans correspond to the insertion of [MASK] tokens. 
           Text infilling is inspired by SpanBERT (Joshi et al., 2019), 
@@ -444,11 +444,11 @@ c) BART: Inputs to the encoder need not be aligned with decoder outputs, allowin
         * information is copied from the input but manipulated, which is closely related to the denoising pre-training objective. 
         * Here, the encoder input is the input sequence, and the decoder generates outputs autoregressively.
     * Machine Translation
-        * we replace BART’s encoder embedding layer with a new randomly initialized encoder.
+        * we replace BARTâs encoder embedding layer with a new randomly initialized encoder.
         * The model is trained end-to-end, which trains the new encoder to map foreign words into an input that BART can de-noise to English. 
         * The new encoder can use a separate vocabulary from the original BART model.
         * trained in 2 steps - in both cases backpropagating the cross-entropy loss from the output of the BART model. 
-            1. we freeze most of BART parameters and only update the randomly initialized source encoder, the BART positional embeddings, and the self-attention input projection matrix of BART’s encoder first layer. 
+            1. we freeze most of BART parameters and only update the randomly initialized source encoder, the BART positional embeddings, and the self-attention input projection matrix of BARTâs encoder first layer. 
             2. we train all model parameters for a small number of iterations.
 
 The effectiveness of pre-training methods is highly dependent on the task. 
@@ -466,10 +466,10 @@ https://arxiv.org/abs/2001.08210
 * We also show that languages not in pre-training corpora can benefit from mBART, strongly suggesting that the initialization is at least partially language universal. 
 
 * Data: CC25 corpus (2.1)
-    * pre-train on a subset of 25 languages – CC25 – extracted from the Common Crawl (CC) (Wenzek et al., 2019; Conneau et al., 2019)
-    * Following Lample and Conneau (2019), we rebalanced the corpus by up/down-sampling text from each language i with a ratio λ_i - check formula
+    * pre-train on a subset of 25 languages â CC25 â extracted from the Common Crawl (CC) (Wenzek et al., 2019; Conneau et al., 2019)
+    * Following Lample and Conneau (2019), we rebalanced the corpus by up/down-sampling text from each language i with a ratio Îť_i - check formula
         * where p_i is the percentage of each language in CC25. 
-        * We use the smoothing parameter α = 0.7.
+        * We use the smoothing parameter Îą = 0.7.
     *Pre-processing 
         * We tokenize with a sentencepiece model (SPM, Kudo and Richardson, 2018)
         * this tokenization supports fine-tuning on additional languages. 
@@ -495,7 +495,7 @@ https://arxiv.org/abs/2001.08210
 * Noise function Following Lewis et al. (2019), 
     * two types of noise in g. 
         * First remove spans of text and replace them with a mask token. 
-          We mask 35% of the words in each instance by random sampling a span length according to a Poisson distribution (λ = 3.5). 
+          We mask 35% of the words in each instance by random sampling a span length according to a Poisson distribution (Îť = 3.5). 
         * permute the order of sentences within each instance. 
     * The decoder input is the original text with one position offset.
     * A language id symbol <LID> is used as the initial token to predict the sentence. 
@@ -505,13 +505,13 @@ https://arxiv.org/abs/2001.08210
     * For each instance of a batch, we sample a language id symbol <LID>, and we pack as many consecutive sentences as possible sampled from the corresponding corpus of <LID>, until either it hits the document boundary or reaches the 512 max token length. 
     * Sentences in the instance are separated by the end of sentence (</S>) token. 
     * Then, we append the selected <LID> token to represent the end of this instance.
-    * Pre-training at “multi-sentence” level enables us to work on both sentence and document translation.
+    * Pre-training at âmulti-sentenceâ level enables us to work on both sentence and document translation.
 
 * Optimization 
     * 25 languages
     * trained on 256 Nvidia V100 GPUs (32GB) for 500K steps. 
     * The total batch size is around 128K tokens per GPU, matching BART (Lewis et al., 2019). 
-    * We use the Adam optimizer ( = 1e−6, β2 = 0.98) 
+    * We use the Adam optimizer ( = 1eâ6, Î˛2 = 0.98) 
     * linear learning rate decay scheduling. 
     * The total training time was approximately 2.5 weeks. 
     * We started the training with dropout 0.1 and reduced it to 0.05 at 250K steps and 0 at 400K steps. 
@@ -527,7 +527,7 @@ https://arxiv.org/abs/2001.08210
 * Fine-tuning & Decoding 
     * We fine-tune our multilingual pre-trained models on a single pair of bitext data, feeding the source language into the encoder and decoding the target language. (figure 1)
     * we load the pre-trained weights and train the MT model on bi-texts with teacher forcing. 
-    * For all directions, we train with 0.3 dropout, 0.2 label smoothing, 2500 warm-up steps, 3e−5 maximum learning rate. 
+    * For all directions, we train with 0.3 dropout, 0.2 label smoothing, 2500 warm-up steps, 3eâ5 maximum learning rate. 
     * We use a maximum of 40K training updates for all low and medium resource pairs and 100K for high resource pairs. 
     * For decoding, we use beam-search with beam size 5 for all directions. 
     * The final models are selected based on validation likelihood. 
@@ -539,11 +539,11 @@ https://arxiv.org/pdf/1910.10683.pdf
 ================================================================================
 
 * introducing a unified framework that converts all text-based language problems into a text-to-text format. 
-* By combining the insights from our exploration with scale and our new “Colossal Clean Crawled Corpus, we achieve state-of-the-art results
+* By combining the insights from our exploration with scale and our new âColossal Clean Crawled Corpus, we achieve state-of-the-art results
 * Crucially, the text-to-text framework allows us to directly apply the same model, objective, training procedure, and decoding process to every task we consider.
 * We emphasize that our goal is not to propose new methods but instead to provide a comprehensive perspective on where the field stands.
  * We also explore the limits of current approaches by scaling up the insights from our systematic study (training models up to 11 billion parameters)
-* to perform experiments at this scale, we introduce the “Colossal Clean Crawled Corpus” (C4), a data set consisting of hundreds of gigabytes of clean English text scraped from the web. 
+* to perform experiments at this scale, we introduce the âColossal Clean Crawled Corpusâ (C4), a data set consisting of hundreds of gigabytes of clean English text scraped from the web. 
 
 * Setup (2)
 
@@ -646,7 +646,14 @@ https://arxiv.org/pdf/1910.10683.pdf
      * The approach we have used so far makes an i.i.d. decision for each input token as to whether to corrupt it or not. 
      * When multiple consecutive tokens have been corrupted, they are treated as a ?span? and a single unique mask token is used to replace the entire span.
      * Corrupting spans was also previously considered as a pre-training objective for BERT, where it was found to improve performance (Joshi et al., 2019).
- 
+
+================================================================================
+ERNIE: Enhanced Language Representation with Informative Entities
+https://arxiv.org/abs/1905.07129
+================================================================================
+
+
+
 ================================================================================
 PMI-MASKING: PRINCIPLED MASKING OF CORRELATED SPANS
 https://arxiv.org/abs/2010.01825
@@ -717,3 +724,116 @@ https://arxiv.org/abs/2010.01825
 On Losses for Modern Language Models
 https://arxiv.org/abs/2010.01694
 ================================================================================
+
+* We show that NSP is detrimental to training due to its context splitting and shallow semantic signal. 
+* We also identify six auxiliary pre-training tasks: sentence ordering, adjacent sentence prediction, TF prediction, TF-IDF prediction, a Fast- Sent variant, and a Quick Thoughts variant ? that outperform a pure MLM baseline. 
+* Finally, we demonstrate that using multiple tasks in a multi-task pre-training framework provides better results than using any single auxiliary task. 
+* Using these methods, we outperform BERTBase on the GLUE benchmark using fewer than a quarter of the training tokens.
+
+* Baseline
+    * For computational reasons we use BERTBase (L = 12, H = 768, A = 12, Total Parameters=110M), 
+    * use the uncased WordPiece tokenizer (Wu et al., 2016) with vocabulary size of 30522 provided by Google?.
+
+* Token level tasks
+    1. Term Frequency prediction (TF): Regression predicting a token?s frequency in the rest of the document. The frequency is re-scaled between 0 and 10 per document.
+    2. Term Frequency-Inverse Document Frequency prediction (TF-IDF): Regression predicting a token?s tf-idf that has been re-scaled between 0 and 10 per document.
+    3. Sentence Boundary Objective (SBO): Predict the masked token given the embeddings of the adjacent tokens.
+    4. Trigram-Shuffling (TGS): 6-way classification predicting the original order of shuffled tri-grams
+    5. Token Corruption Prediction (TCP): Binary classification of whether a token has been corrupted (inserted, replaced, permuted) or not.
+    6. Capitalization Prediction (Cap.): Binary, whether a token is capitalized or not.
+    7. Token Length Prediction (TLP): Regression to predict the length of the WordPiece token.
+* Sentence level tasks
+    8. Next Sentence Prediction (NSP): Binary, whether the second sentence follows the first or comes from a separate document.
+    9. Adjacent Sentence Prediction (ASP): 3-way classification whether the second sentence proceeds the first, precedes the first, or they come from separate documents.
+    10. Sentence Ordering (SO): Binary, predicting if the two sentences are in or out of order.
+    11. Sentence Distance Prediction (SDP): 3-way classification of whether the second sentence proceeds, the two sentences are noncontiguous from the same document, or come from separate documents.
+    12. Sentence Corruption Prediction (SCP): Binary classification of whether a tokens in a sentence have been corrupted (inserted, replaced, permuted) or not.
+    13. Quick Thoughts variant (QT): Split each batch into two, where the second half contains the subsequent sentences of the first half (e.g. with batch size 32, sentence 17 follows sentence 1, sentence 18 follows sentence 2,...). We use an energy-based model to predict the correct continuation for each sentence in the first half where the energy between two sentences is defined by the negative cosine similarity of their [CLS] embeddings. (figure 1)
+    14. FastSent variant (FS): same as QT above. The loss is defined as cross-entropy between 1.0 and the cosine similarity of a sentence [CLS] embedding and the other sentence token embeddings ([CLS] embedding from the first half with token embeddings from the second half and [CLS] embeddings from second half with token embeddigns from the first half). We use one model to encode both halves concurrently.
+
+* Combining tasks (3.3)
+    * BERT originally proposed summing the MLM and NSP losses directly. 
+    * ERNIE uses significantly more losses and proposes a continual multi-task learning framework to incorporate them, in which they incrementally add new tasks while sampling previously learnt tasks. 
+    * we investigate the six following ways of combining a set of tasks for BERT pre-training:
+        1. Sum losses from all tasks (sum.)
+        2. Incrementally add tasks, summing the losses         from all added tasks (Inc.)
+        3. Alternating between tasks each iteration (Alt.) 
+        4. Alternating between auxiliary tasks each iteration and summing it with MLM (Alt.+)
+        5. ERNIE?s continual multi-task learning (CMTL), for more detail see Appendix A
+        6. ERNIE?s continual multi-task learning on auxiliary tasks summed with MLM (CMTL+)
+
+* Input Representation (3.4)
+    * we sum token embeddings, learned position embeddings, learned sentence type (sentence A or B) embeddings, and, to enable ERNIE?s continual multi-task learning, a learned task id embeddings .
+
+* Dataset (3.5)
+    * We follow precedent in using the BookCorpus? (Zhu et al., 2015) and Wikipedia dataset as our corpora.
+    * We filter the Wikipedia corpus in the same fashion as BERT, ignoring lists, tables, and headers.
+    * We additionally filter documents that have: fewer than 10 words or fewer than 4 sentences. 
+    * We additionally segment long documents into documents of roughly 1024 tokens. 
+    * This creates a corpus with 2.7 billion words (3.8 billion tokens) divided into 6.8 million documents.
+
+* Pre-Training Details (3.6)
+    * For all tests, we train on 10 billion tokens
+    * Adam optimizer (Kingma and Ba, 2014) 
+    * learning rate of 1e-4 that warms-up over the first 1% of tokens and linearly decays after
+    * batch size = 128, max sequence length = 128, 
+    * beta_1 = 0.9, beta_2 = 0.999, L2 weight decay of 0.01, 
+    * dropout probability of 0.1. 
+    * gelu activation (Hendrycks and Gimpel, 2016). 
+    * Using four p100 GPUs, it takes between 13 and 15 hours to train a model for each one billion token epoch depending on the tasks used.
+
+* Fine-Tuning Details (3.7)
+    * All models are tested on the GLUE (Wang et al., 2018) benchmark, and SuperGLUE (Wang et al., 2019a) benchmark. 
+    * Following Devlin et al. (2018); Cheng et al. (2019), we disregard GLUE’s problematic WNLI task. 
+    * To fine-tune the model on the GLUE dataset, we use Jiant’s (Wang et al., 2019b) provided code. 
+    * We limit the maximum number of epochs to 3 
+    * we run the fine-tuning procedure three times with learning rates = 5e-5, 3e-5, 2e-5 and take the best results for each task individually
+    * For all other fine-tuning parameters, we use the default values provided by jiant unless otherwise stated.
+
+* Understanding NSP (4.1)
+    * splitting the context imposes inherent limitations on language models.
+
+* Auxiliary Tasks (4.2)
+    * We first compare the 14 auxiliary tasks in Table 1 to a MLM baseline (No Aux.). 
+    * NSP is detrimental to training. It provides a shallow supervision signal, and is often solvable through lexical overlap. 
+    * Adjacent sentence prediction and sentence ordering on the other hand require deeper semantic understanding of the structure of language. 
+        * with SO and ASP outperforming MLM and NSP on all inference tasks and greatly outperforming all auxiliary tasks on RTE, the only low-resource inference task. 
+    * The model trained using the Quick Thoughts variant (QT) performs the best out of all the above models. 
+        * We hypothesize that the loss, based on cosine similarity, provides a soft clustering around semantically similar topics, which produces more distinguishable embeddings. 
+    * The FastSent variant (FS) provides a similar signal and performs the second best, suggesting that some form of soft clustering does provide substantial benefit to pre-training. 
+    * TF-IDF, and to a lesser extent TF, prediction also improve performance on a range of downstream tasks. 
+        * This aligns with Sun et al. (2019b)’s observations that identifying high value words (and discounting filler words) provides a useful signal for language models. 
+    * All other tasks fail to provide any meaningful gains. 
+    * Our results did not find the Sentence Boundary Objective (SBO) to be beneficial. 
+        * However, as it was originally implemented for spans, this does not discount the results of Joshi et al. (2019); in our context, which only masks a single word, it is likely redundant with MLM. 
+
+* Combining Tasks (4.3)
+    * To test combining multiple tasks, we use all auxiliary losses that substantially outperform a pure MLM baseline. 
+    * For tasks that provide similar signals, we select the one that achieved a higher average
+    * This provides 4 tasks for the multi-task training: MLM, QT, SO, and TF-IDF.
+    * Our results indicate that multitask training with MLM preserves the benefits of each individual task, with the combined models retaining QT's high CoLA score and SO's high RTE score. 
+    * Further, these gains are additive in most cases: for QNLI, MNLI, and STS-B the combined models performs better than any single auxiliary task models. 
+    * Between combination methods that use MLM in every iteration, the incremental approach appears to be the worse, 
+    * while summing everything, alternating auxiliary tasks (Alt.+), and continual multi-task learning on auxiliary tasks (CMTL+) all perform similarly, 
+    * Interestingly, both approaches where tasks vary each iteration (Alt.+ and CMTL+) see a significant benefit on the CoLA task. 
+        * While not beneficial in our framework, an alternating pattern or CMTL have the additional benefit of enabling different input structures or the use of different corpora 
+
+* Final Results (4.4)
+    * For our final test, we train our baselineMLMmodel and CMTL+ model on 32 billion tokens and present the results using the GLUE and SuperGLUE evaluation
+    * When fine-tuning these models, we run an exhaustive hyper parameter search on 
+        * learning rates = 1e-5, 2e-5, 3e-5, 5e-5, 
+        * batch sizes = 16, 32, 
+        * number of epochs = 2, 3, 4. 
+    * The results show that the CMTL+ model - trained on MLM, QT, SO, and TF-IDF in a continual multi-task learning framework - vastly outperforms the MLM baseline in every task. 
+    * Further, our model trained on 32 billion tokens outperforms the original BERTBase, which required 137 billion tokens.
+
+* Discussion (5)
+    * NSP prediction is a semantically shallow and often solvable through lexical overlap 
+    * using a task that requires understanding the ordering of contiguous text provides a stronger semantic signal;
+    * a language model should be trained in a multi-task setting. 
+    * Providing a signal to reduce the embedding distance between semantically similar sentences, as in our FastSent or QuickThought variants 
+    * Providing a signal that relays word importance, such as TF-IDF and TF, likewise produces substantial benefit to BERT pre-training.
+    * We show strong evidence that a MLM variant loss should always be included when multi-task learning.
+    * combining multiple beneficial tasks leads to better results than using any of the individual tasks alone.
+
+

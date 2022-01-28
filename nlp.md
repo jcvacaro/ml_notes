@@ -344,7 +344,7 @@ https://cdn.openai.com/better-language-models/language_models_are_unsupervised_m
   This suggests that multitask training may need just as many effective training pairs to realize its promise with current approaches. 
 * The current best performing systems on language tasks utilize a combination of pre-training and supervised finetuning. 
     * However, Recent work suggests that task-specific architectures are no longer necessary and transferring many self-attention blocks is sufficient (Radford et al., 2018) (Devlin et al., 2018).
-* We demonstrate language models can perform down-stream tasks in a zero-shot setting Ã¢Â€Â“ without any parameter or architecture modification. 
+* We demonstrate language models can perform down-stream tasks in a zero-shot setting without any parameter or architecture modification. 
 
 * Approach
     * Learning to perform a single task can be expressed in a probabilistic framework as estimating a conditional distribution p(output|input). 
@@ -355,7 +355,17 @@ https://cdn.openai.com/better-language-models/language_models_are_unsupervised_m
         * a translation training example can be written as the sequence (translate to french, english text, french text). 
         * a reading comprehension training example can be written as (answer the question, document, question, answer).
     * Our speculation is that a language model with sufficient capacity will begin to learn to infer and perform the tasks demonstrated in natural language sequences in order to better predict them, regardless of their method of procurement. 
-        * If a language model is able to do this it will be, in effect, performing unsupervised multitask learning. 
+    * If a language model is able to do this it will be, in effect, performing unsupervised multitask learning. 
+
+* Dataset
+    * we created a new web scrape which emphasizes document quality. 
+    * we only scraped web pages which have been curated/filtered by humans. 
+    * we scraped all outbound links from Reddit, a social media platform, which received at least 3 karma. 
+    * The resulting dataset, WebText
+    * contains the text subset of these 45 million links. 
+    * All results presented in this paper use a preliminary version of WebText which does not include links created after Dec 2017 
+    * which after de-duplication and some heuristic based cleaning contains slightly over 8 million documents for a total of 40 GB of text. 
+    * We removed all Wikipedia documents from WebText since it is a common data source for other datasets and could complicate analysis due to over lapping training data with test evaluation tasks.
 
 * Input Representation (2)
     * A general language model (LM) should be able to compute the probability of (and also generate) any string. 
@@ -365,6 +375,7 @@ https://cdn.openai.com/better-language-models/language_models_are_unsupervised_m
     * This results in a sub-optimal allocation of limited vocabulary slots and model capacity. 
     * To avoid this, we prevent BPE from merging across character categories for any byte sequence. 
     * We add an exception for spaces which significantly improves the compression efficiency while adding only minimal fragmentation of words across multiple vocab tokens.
+    * Since our approach can assign a probability to any Unicode string, this allows us to evaluate our LMs on any dataset regardless of pre-processing, tokenization, or vocab size.
 
 * Model
     * follows the details of the OpenAI GPT model (Radford et al., 2018) 
@@ -836,4 +847,551 @@ https://arxiv.org/abs/2010.01694
     * We show strong evidence that a MLM variant loss should always be included when multi-task learning.
     * combining multiple beneficial tasks leads to better results than using any of the individual tasks alone.
 
+================================================================================
+Muppet: Massive Multi-task Representations with Pre-Finetuning
+https://arxiv.org/abs/2101.11038
+================================================================================
 
+* We propose pre-finetuning, an additional largescale learning stage between language model pre-training and fine-tuning. 
+* Pre-finetuning is massively multi-task learning (around 50 datasets, over 4.8 million total labeled examples),
+* it consistently improves performance for pretrained discriminators (e.g. RoBERTa) and generation models (e.g. BART) 
+* pre-finetuning can hurt performance when few tasks are used up until a critical point (usually above 15) after which performance improves linearly in the number of tasks.
+* We show that standard multi-tasking schemes can be unstable and often fail to learn high quality representations. 
+    * However, we introduce a new training scheme which uses loss scaling and task-heterogeneous batches so that gradient steps are more evenly balanced across multiple different competing tasks, 
+
+* Pre-Finetuning Through Massive Multitask Learning (3)
+    * it can be challenging to balance the losses from different tasks; 
+    * upsampling can lead to overfitting low resource tasks,
+    * and downsampling can lead to improper learning of specific tasks. 
+    * This difficulty is particularly pronounced when operating at the scale 
+
+* Tasks and Losses (3.1)
+    * We select language tasks across four different domains: classification, commonsense reasoning, machine reading comprehension, and summarization.
+    * In total our multi-task set up learns over 4.8M supervised samples across 4 families of tasks.
+    * Standard Losses
+        * our model contains task-specific heads, each optimizing for a task-specific loss. 
+            * Classification: Cross Entropy (CE)
+            * Summarization: Label Smoothed CE (Szegedy et al., 2015)
+            * MRC: Span Prediction (Seo et al., 2016)
+            * Commonsense: Sentence Ranking Loss (Liu et al., 2019b)
+        * Each loss is scaled with loss scaling described in §3.3. 
+        * After loss scaling, the gradients from each task are averaged before doing the model update step.
+
+* Optimization (3.2)
+    * We show two strategies to learn multi-task representations at scale
+    * Accumulating Gradients Across Tasks (Heterogeneous Batches) 
+        * model is trying to optimize not a single objective but several potentially competing objectives
+        * moving along the gradient of a single task may not be the optimal direction for the model to move to learn a single unified representation 
+        * To overcome this, we ensure each batch our model optimizes consists of several tasks. 
+        * Each worker samples a random batch from our set of tasks and computes a gradient, accumulated for the final update. 
+        * Empirically we use 64 GPUs for pre-finetuning, resulting in each batch consisting of gradients across 64 sampled tasks. 
+    * Leveraging Better Finetuning.
+        * learned from self-supervised pre-training in pre-finetuning. 
+        * Mosbach et al. (2020) show that standard fine-tuning of pre-trained models can be unstable, which may be aggravated in our case as we are training on a diverse set of tasks simultaneously.
+        * Therefore, we employ the R3F/R4F methods (Aghajanyan et al., 2020) 
+        * consists of an additional loss term, ensuring that small perturbations to the input space result in similar representations, which can be used to learn more robust representations during pre-finetuning.
+
+* Loss Scaling (3.3)
+    * introduce a multiplicative reweighting of individual losses per data-point. 
+    * As pre-finetuning optimizes several different types of tasks and datasets, each having its own output spaces, loss scaling becomes essential to ensure stable training. 
+    * We scale data-point loss so that, if the class distribution were uniformly distributed along with our models predictions, all of our losses would have equivalent values. - check equation (1)
+
+* Sampling (3.4)
+    * Another approach to balancing various tasks in a multi-task set up is to up-sample smaller datasets and down-sample larger ones to achieve more uniformity between dataset sizes.
+    * recent work has shown that it does not work well for multitask learning of pre-trained representations (for example, T5)
+    * We also found that sampling datasets were consistently detrimental for multi-task learning over pre-trained representations during initial experimentation.
+
+* Experimental Setup (3.5)
+    * *RoBERTa (Liu et al., 2019b) and BART (Lewis et al., 2019) as our initial pre-trained models to further pre-finetune. 
+    * For each task type we use a different prediction scheme. 
+    * Every Sentence Prediction dataset gets a separate classification head
+    * for Commonsense and MRC we utilize a separate unified head for each task. 
+    * For Summarization, we do not add any parameters and use the BART decoder and output layer as is. 
+    * Experimentally we saw using a different head per individual Commonsense and MRC datasets lead to severe overfitting.
+    * We trained each model configuration with 64 GPUs until convergence (this ranged from a day to 4 days)
+
+* Experiments (4)
+    * Given that our pre-finetuned models now have an understanding of the task at hand through the use of classification heads, we have a choice during finetuning on whether or not to use these heads. 
+    * In general we found re-using heads to be beneficial for MRC, Commonsense and Sentence Prediction tasks with small dataset size.
+    * We see more modest gains on larger datasets, most likely because we do not need to refine representations beforehand if the fine-tuning dataset is large.
+    * On smaller datasets, we see substantial gains. 
+    * For example, the pre-finetuned RoBERTa-BASE model on RTE improves by close to 9 points, rivaling the RoBERTa-Large accuracy, 
+    * while the pre-finetuned RoBERTa-Large model gets new state-of-the-art on RTE rivaling models an order of magnitude larger than it.
+    * Our methods do not increase parameter count or any complexity measures but are quite successful at refining features and preparing them for downstream fine-tuning.
+
+* Understanding Multi-Task at Scale (5)
+
+* Importance of Scale
+    * T5 and MT-DNN, focused on the MTL scale of around a dozen datasets. To the best of our knowledge, our paper has the largest MTL set up to date. 
+    * train seven models, 
+    * six uniformly chosen between 10 and 40, ensuring that at each point, the selected datasets are a superset of the datasets from prior points. 
+    * The last model is fully trained on all datasets. 
+    * For each version of the model, we finetune STS-B (Cer et al., 2017), BoolQ (Clark et al., 2019), RACE (Lai et al., 2017), SQuAD (Lai et al., 2017), and MNLI (Williams et al., 2018a).
+    *  We include these five datasets in the first MTL run (10 datasets) to remove any bias from adding them in a later stage.
+    * We see a couple of interesting patterns. 
+        * for individual tasks such as RTE (Bentivogli et al., 2009), increasing the pre-finetuning scale monotonically improves performance. 
+            * This is aligned with other papers that have seen benefits from first training on MNLI (Williams et al., 2018a) and then fine-tuning on RTE (Liu et al., 2019b). 
+        * For other datasets, we see that doing MTL in the < 15 datasets regime is detrimental for end-task finetuning.
+            * This is also aligned with other empirical observations, i.e., T5 reported that doing MTL did not improve over only fine-tuning.  
+        * Nevertheless, it seems that as we increase the number of tasks past some critical point, our pre-trained representations become more generalizable. 
+        * although dependent on the dataset, this critical point is roughly between 10 and 25 tasks.
+        * This suggests that previously observed MTL limitations were not fundamental and can instead be attributed to the lack of sufficient scale.
+
+
+* Importance of Heterogenous Batches (5.2)
+    * critical aspect is the method through which MTL is implemented, specifically the selection of batches. 
+    * we experimented with three balancing schemes:
+        * dataset homogenous
+            * selecting batches from datasets sequentially. 
+            * first train on dataset A, then train on dataset B, etc.
+        * batch homogenous 
+            * selecting batches containing only data from the  same task; therefore, all gradients are from thesame dataset. 
+            * This is implemented by selecting all  datasets, batching on a dataset level, and selectingthose same batches randomly during training.
+        * batch heterogenous
+            * a single update containing a batch from multiple different datasets spanning different tasks. 
+            * We implemented this by first creating homogenous sub-batches, calculating loss per sub-batch per GPU, and then aggregating across GPUs manifesting in a gradient update that contains various datasets and, therefore, tasks.
+    * Our findings are also consistent with (Aghajanyan et al., 2020) which saw that sequential training of data-sets degrades generalizable representations.
+
+* Low Resource Experiments (5.3)
+    * We noticed in Section §4 that data-sets with smaller data-set sizes tended to improve more from MTL
+    * we look at two factors: the scale of pre-finetuning and the scale of fine-tuning (size of fine-tuning data-set).
+    * We select three data-sets that were not used in pre-finetuning in Section §5.1. 
+    * We also select nine partitions per fine-tuning data-set, which is sampled uniformly between 10% of the data-set and 100% of the data-set. 
+    * Selecting the low-resource splits was done through random sampling.
+    * We then fine-tune every low-resource split with every pre-finetuning checkpoint from Section §5.1.
+    * As we increase the scale of MTL, better representations are available for downstream finetuning. 
+    * Furthermore, we see that prefinetuned models at a larger scale are much more data-efficient than standard pre-trained models.
+
+================================================================================
+Language Models are Few-Shot Learners (GPT3)
+https://arxiv.org/abs/2005.14165
+================================================================================
+
+* NLP usually pre-training + fine-tuning on a specific task. 
+* While typically task-agnostic in architecture, this method still requires task-specific fine-tuning datasets of thousands or tens of thousands of examples. 
+* By contrast, humans can generally perform a new language task from only a few examples or from simple instructions 
+* GPT-3, an autoregressive language model with 175 billion parameters, 
+* test its performance in the few-shot setting. 
+* For all tasks, GPT-3 is applied without any gradient updates or fine-tuning, with tasks and few-shot demonstrations specified purely via text interaction with the model.
+
+* introduction (1)
+    * meta-learning: 
+        * which in the context of language models means the model develops a broad set of skills and pattern recognition abilities at training time, and then uses those abilities at inference time to rapidly adapt to or recognize the desired task (illustrated in Figure 1.1). 
+        * In the context of language models this has sometimes been called ?zero-shot transfer?, but this term is potentially ambiguous: the method is ?zero-shot? in the sense that no gradient updates are performed, but it often involves providing inference-time demonstrations to the model, so is not truly learning from zero examples. 
+        * we use the term ?meta-learning? to capture the inner-loop / outer-loop structure of the general method, 
+        * and the term ?in context-learning? to refer to the inner loop of meta-learning. 
+        * We further specialize the description to ?zero-shot?, ?one-shot?, or ?few-shot? depending on how many demonstrations are provided at inference time. 
+    * RWC+ [19] attempts to do this via what we call ?in-context learning?, 
+        * uses the text input of a pretrained language model as a form of task specification: 
+        * the model is conditioned on a natural language instruction and/or a few demonstrations of the task and is then expected to complete further instances of the task simply by predicting what comes next.
+        * While it has shown some initial promise, this approach still achieves results far inferior to fine-tuning
+
+* approach (2)
+    * Our basic pre-training approach, including model, data, and training, is similar to the process described in [RWC+19],
+    * our use of in-context learning is also similar to [RWC+19]
+    * check figure 2.1 **important** input format for the model
+
+* Model and Architectures (2.1)
+    * We use the same model and architecture as GPT-2 [RWC+19], 
+    * including the modified initialization, pre-normalization, and reversible tokenization described therein, 
+    * with the exception that we use alternating dense and locally banded sparse attention patterns in the layers of the transformer, similar to the Sparse Transformer [CGRS19]. 
+    * we train 8 different sizes of model, ranging over three orders of magnitude from 125 million parameters to 175 billion parameters, with the last being the model we call GPT-3. 
+    * we always have the feedforward layer four times the size of the bottleneck layer
+    * All models use a context window of nctx = 2048 tokens. 
+    * We partition the model across GPUs along both the depth and width dimension in order to minimize data-transfer between nodes. 
+
+* Training Dataset (2.2)
+    * we have found that unfiltered or lightly filtered versions of Common Crawl tend to have lower quality than more curated datasets. 
+    * Therefore, we took 3 steps to improve the average quality of our datasets:
+    (1) we downloaded and filtered a version of CommonCrawl based on similarity to a range of high-quality reference corpora, 
+    (2) we performed fuzzy deduplication at the document level, within and across datasets, to prevent redundancy and preserve the integrity of our held-out validation set as an accurate measure of overfitting, 
+    (3) we also added known high-quality reference corpora to the training mix to augment CommonCrawl and increase its diversity.
+        * an expanded version of the WebText dataset [RWC+19], 
+        * two internet-based books corpora (Books1 and Books2) 
+        * English-language Wikipedia.
+    * CC total size: constituting 45TB of compressed plaintext before filtering and 570GB after filtering, roughly equivalent to 400 billion byte-pair-encoded tokens. 
+    * during training, datasets are not sampled in proportion to their size, but rather datasets we view as higher-quality are sampled more frequently,
+    * This essentially accepts a small amount of overfitting in exchange for higher quality training data.
+
+* Training Process (2.3)
+    * As found in [KMH+20, MKAT18], larger models can typically use a larger batch size, but require a smaller learning rate. 
+    * We measure the gradient noise scale during training and use it to guide our choice of batch size [MKAT18]. 
+    * To train the larger models without running out of memory, we use a mixture of model parallelism within each matrix multiply and model parallelism across the layers of the network. 
+    * All models were trained on V100 GPU?s on part of a high-bandwidth cluster provided by Microsoft. 
+
+* Evaluation (2.4)
+    * For few-shot learning, we evaluate each example in the evaluation set by randomly drawing K examples from that task?s training set as conditioning, delimited by 1 or 2 newlines depending on the task. 
+    * K can be any value from 0 to the maximum amount allowed by the model?s context window, which is nctx = 2048 for all models and typically fits 10 to 100 examples.
+    *  Larger values of K are usually but not always better, 
+    * For some tasks (see Appendix G) we also use a natural language prompt in addition to (or for K = 0, instead of) demonstrations.
+    * On tasks that involve choosing one correct completion from several options (multiple choice), 
+        * we provide K examples of context plus correct completion, 
+        * followed by one example of context only, 
+        * and compare the LM likelihood of each completion. 
+    * For most tasks we compare the per-token likelihood (to normalize for length), 
+    * however on a small number of datasets (ARC, OpenBookQA, and RACE) we gain additional benefit by normalizing by the unconditional probability of each completion: P(completion|context) / P(completion|answer context) , 
+    * On tasks that involve binary classification, we give the options more semantically meaningful names (e.g. ?True? or ?False? rather than 0 or 1) and then treat the task like multiple choice
+    * On tasks with free-form completion, we use beam search with the same parameters as [RSR+19]: 
+        * a beam width of 4 and length penalty of alpha = 0:6. 
+        * We score the model using F1 similarity score, BLEU, or exact match, depending on what is standard for the dataset at hand.
+    * see Appendix G for details
+
+* Results (3)
+    * As observed in [KMH+20], language modeling performance follows a power-law when making efficient use of training compute. 
+    * After extending this trend by two more orders of magnitude, we observe only a slight (if any) departure from the power-law. 
+    * 9 groups
+    * traditional language modeling tasks and tasks that are similar to language modeling, such as Cloze tasks and sentence/paragraph completion tasks. (3.1)
+    * closed book? question answering tasks: tasks which require using the information stored in the model?s parameters to answer general knowledge questions. (3.2)
+    *  model?s ability to translate between languages (especially one-shot and few-shot) (3.3)
+    * model?s performance on Winograd Schema-like tasks (3.4)
+    * datasets that involve commonsense reasoning or question answering (3.5)
+    * reading comprehension tasks (3.6)
+    * SuperGLUE benchmark suite (3.7)
+    * NLI (3.8)
+    * invent some additional tasks designed especially to probe in-context learning abilities (3.9)
+    * We evaluate all tasks in the few-shot, one-shot, and zero-shot settings.
+
+* Measuring and Preventing Memorization Of Benchmarks (4)
+    * thoughts/analysis about contamination - training data leaking to the dev/test sets
+
+* discussion (5)
+    * On text synthesis, although the overall quality is high, GPT-3 samples still sometimes repeat themselves semantically at the document level, start to lose coherence over sufficiently long passages, contradict themselves, and occasionally contain non-sequitur sentences or paragraphs. 
+    * Within the domain of discrete language tasks, we have noticed informally that GPT-3 seems to have special difficulty with ?common sense physics?, despite doing well on some datasets (such as PIQA [BZB+19])
+    * Quantitatively, GPT-3?s in-context learning performance has some notable gaps on our suite of benchmarks, as described in Section 3, and in particular it does little better than chance when evaluated one-shot or even few-shot on some ?comparison? tasks, such as determining if two words are used the same way in a sentence, or if one sentence implies another (WIC and ANLI respectively), as well as on a subset of reading comprehension tasks. 
+      This is especially striking given GPT-3?s strong few-shot performance on many other tasks.
+    * We focused on exploring in-context learning behavior in autoregressive language models because it is straightforward to both sample and compute likelihoods with this model class. 
+        * Thus our design decision comes at the cost of potentially worse performance on tasks which empirically benefit from bidirectionality. 
+        * We also conjecture, based on past literature, that a large bidirectional model would be stronger at fine-tuning than GPT-3 (good future work)
+    * the GPT-3 approach may eventually run into (or could already be running into) the limits of the pretraining objective. 
+        * Our current objective weights every token equally and lacks a notion of what is most important to predict and what is less important. [
+        * RRS20] demonstrate benefits of customizing prediction to entities of interest. 
+        * useful language systems (for example virtual assistants) might be better thought of as taking goal-directed actions rather than just making predictions. 
+    * Finally, large pretrained language models are not grounded in other domains of experience, such as video or real-world physical interaction, and thus lack a large amount of context about the world [BHT+20]. 
+    * Another limitation broadly shared by language models is poor sample efficiency during pre-training. 
+        * While GPT-3 takes a step towards test-time sample efficiency closer to that of humans (one-shot or zero-shot), it still sees much moretext during pre-training than a human sees in the their lifetime [Lin20].
+    * expensive and inconvenient to perform inference on, which may present a challenge for practical applicability of models of this scale in their current form. 
+        * One possible future direction to address this is distillation [HVD15] 
+        * Distillation is well-explored in general [LHCG19a] but has not been tried at the scale of hundred of billions parameters;
+    * GPT-3 shares some limitations common to most deep learning systems ? its decisions are not easily interpretable,
+    * it is not necessarily well-calibrated in its predictions on novel inputs as observed by the much higher variance in performance than humans on standard benchmarks, 
+    it retains the biases of the data it has been trained on. 
+
+================================================================================
+MetaICL: Learning to Learn In Context
+https://arxiv.org/abs/2110.15943?utm_campaign=NLP%20News&utm_medium=email&utm_source=Revue%20newsletter
+================================================================================
+
+* Large language models (LMs) have recently been shown to be able to do in-context learning (Brown et al., 2020), 
+    * where they learn a new task simply by conditioning on a few training examples and predicting which tokens best complete a test input.
+    * is attractive because the model learns a new task through inference alone, without any parameter updates. 
+    * However, performance significantly lags behind supervised finetuning, results are often high variance (Zhao et al., 2021; Perez et al., 2021), 
+
+* In MetaICL, 
+    * each meta-training example matches the test setup
+    * it includes k + 1 training examples from one task that will be presented together as a single sequence to the language model, 
+    * the output of the final example is used to calculate the cross-entropy training loss. 
+
+* the model learns to recover the semantics of the task from the given examples, as must be done for in-context learning of a new task at test time. 
+* MetaICL is distinct from other similar work as it allows learning new tasks from k examples alone, without relying on a task reformatting  (e.g., reducing everything to question answering) or task-specific templates (e.g., converting different tasks to a language modeling problem).
+* 52 unique target tasks in total, which is the largest among all recent related work to the best of our knowledge.
+* Gains over multi-task zero-shot transfer are particularly significant when meta-training tasks and target tasks are dissimilar, e.g. there are large differences in task formats, domains, or required skills. 
+* we demonstrate MetaICL without any templates is better than recent work using human-written natural instructions, while the best performance is achieved by combining both approaches.
+
+* MetaICL (3)
+    * check table 1
+    * The key idea is to use a multi-task learning scheme over a large collection of metatraining tasks
+    * Following previous literature (Brown et al., 2020), the training examples are concatenated and provided as an single input to the model, which is feasible for k-shot learning (e.g., k = 16).
+    * At test time, the model is evaluated on an unseen target task that comes with k training examples, and inference directly follows the same data format as in meta-training.
+
+* Meta-training (3.1)
+    * The model is meta-trained on a collection of tasks which we call meta-training tasks. 
+    * For every iteration, one meta-training task is sampled, and k + 1 training examples (x1; y1); ...; (xk+1; yk+1) are sampled from the training examples of the chosen task. 
+    * We then supervise the model by feeding the concatenation of x1; y1; ...; xk; yk; xk+1 to the model as an input 
+    * and train the model to generate yk+1 using a negative log likelihood objective.
+    * This simulates in-context learning at inference where the first k examples serve as training examples and the last (k + 1)-th example is regarded as the test example.
+
+* Inference (3.2)
+    * For a new target task, the model is given k training examples (x1; y1); ...; (xk; yk) as well as a test input x. 
+    * It is also given a set of candidates C which is either a set of labels (in classification) or answer options (in question answering). 
+    * As in meta-training, the model takes a concatenation of x1; y1; ...; xk; yk; x as the input, 
+    * and compute the conditional probability of each label c_i \in C. 
+    * The label with the maximum conditional probability is returned as a prediction.
+
+* Channel MetaICL (3.3)
+    * a noisy channel variant of MetaICL called Channel MetaICL, following Min et al. (2021). 
+    * P(y|x) is reparameterized to P(x|y)P(y)/P(x)  that approximates/proportional P(x|y)P(y).
+    * We follow Min et al. (2021) in using P(y) = 1
+    * allows us to use the channel approach by simply flipping x and y. 
+    * at meta-training time, the model is given a concatenation of y1; x1; ...; yk; xk; yk+1, and is trained to generate xk+1. 
+    * At inference, the model computes argmax_c P(x|y1,x1; ...; yk,xk, c)
+
+4 Experimental Setup
+
+* Datasets (4.1)
+    * We have 142 unique tasks in total - CROSSFIT (Ye et al., 2021) and UNIFIEDQA (Khashabi et al., 2020)
+    * there is no overlap between the meta-training and target tasks. 
+    * The number of unique target tasks in total is 52
+    * We experiment with seven distinct settings as shown in Table 2,
+        * HR!LR (High resource to low resource): 
+            * We experiment with a main setting where datasets with 10,000 or more training examples are used as metatraining tasks and the rest are used as target tasks.
+            * We think using high resource datasets for metatraining and low resource datasets as targets is a realistic and practical setting for few-shot learning.
+        * X!X (X={Classification, QA}): 
+            * We also experiment with two settings with meta-training and target tasks sharing the task format, although with no overlap in tasks.
+        * Non-X!X (X={Classification, QA, NLI, Paraphase}):
+            * four settings where meta-training tasks do not overlap with target tasks in task format and required capabilities.
+            * These settings require the most challenging generalization capacities.
+    * Each setting has a subset of target tasks with no domain overlap with any meta-training tasks (e.g., finance, poem, climate or medical). 
+
+* Baselines (4.2)
+    * We compare MetaICL and Channel MetaICL (table 3)
+    * 0-shot: We use a pretrained LM as it is and run zero-shot inference, following Brown et al. (2020).
+    * In-context: We use the pretrained LM as it is and use in-context learning by conditioning on a concatenation of k training examples, following Brown et al. (2020).
+    * PMI 0-shot, PMI In-context: We use the PMI method from Holtzman et al. (2021); Zhao et al. (2021) for 0-shot and In-context learning.
+    * Channel 0-shot, Channel In-context: We use the noisy channel model from Min et al. (2021) for 0-shot and In-context learning.
+    * Multi-task 0-shot: We train the LM on metatraining tasks and use zero-shot transfer on a target task, as done in Khashabi et al. (2020); Zhong et al. (2021); Wei et al. (2021).
+    * Channel Multi-task 0-shot: We have a noisy channel variant of Multi-task 0-shot. 
+    * Oracle: We train the LM on a given target task. This is not directly comparable to other methods as parameter updates are required for every target task.
+    * Oracle w/ meta-train: We train the LM on metatraining tasks first and then further finetuned on a target task. This is not directly comparable to other methods for the same reason as above.
+
+* Evaluation (4.3)
+    * Macro-F1 for classification (More suitable than accuracy for imbalanced classification)
+    * Accuracy for non-classification tasks
+    * For a target task, we use k = 16 training examples, sampled uniformly at random. 
+    * We relax the assumption of perfect balance between labels on k training examples, following Min et al. (2021).
+    * Because in-context learning is known to have high variance, we use 5 different sets of k training examples. 
+    * We first compute the average and the worst-case performance over seeds for every target task, and then report the macro-average of them over all target tasks.
+
+* Elimination of templates (table 4)
+    * human-authored templates to transform the inputoutput pair to a natural language sentence require expensive manual effort (as 136 different templates are required for 136 tasks in this paper) and cause unstable model performance due to many different ways of writing (Mishra et al., 2021a). 
+    * We eliminate templates, using the given input (or a concatenation of inputs if there are multiple) and label words provided in the original datasets. 
+
+* Experiment Details (4.4)
+    * As a base LM, we use GPT-2 Large (Radford et al., 2019) which consists of 770M parameters.
+    * For baselines without meta-training (raw LMs), we also compare with GPT-J (Wang and Komatsuzaki, 2021),6B parameters, public available
+    * For meta-training, 
+        * we use up to 16,384 training examples per task. 
+        * We use a batch size of 8, 
+        * learning rate of 10^-5
+        * a sequence length of 1024.
+    * For the baselines with no in-context learning,
+        * sequence length of 256. 
+    * We train the model for 30; 000 steps. 
+    * use an 8-bit approximation of an Adam optimizer 
+    * mixed precision 
+    * Training was done for 4.5 hours with eight 32GB GPUs
+    * This is drastically more efficient than recent prior work, e.g., 270 hours of a 512GB TPU in Sanh et al. (2021).
+
+* Experimental Results (5)
+    * Our baselines are strong     
+        * Among raw LMs without meta-training, we observe that channel in-context baselines are the most competitive, consistent with findings from Min et al. (2021). 
+        * Multi-task 0-shot baselines do not outperform the best raw LM baseline in most settings, despite being supervised on a large set of meta-training tasks (this somewhat contradicts findings from Wei et al. (2021); Sanh et al. (2021))
+            * our models are much smaller than theirs (770M vs. 11B-137B);
+            * in fact, Wei et al. (2021) reports Multi-task 0-shot starts to be better than raw LMs only when the model size is 68B or larger. 
+            * we compare with much stronger channel baselines which they did not; 
+        * Multi-task 0-shot outperforms non-channel LM baselines but not channel LM baselines.
+    * MetaICL outperforms baselines 
+        * While which of MetaICL or Channel MetaICL is better depends on the setting, 
+        * gains over baselines in the HR!LR, non-NLI!NLI and non-Para!Para settings are significant. 
+            * This is intriguing because HR!LR is the most realistic setting, and the other  two settings are those in which target tasks require very different skills from meta-training tasks. 
+            * This demonstrates that MetaICL enables the model to recover the semantics of the task in context at inference even though there is no similar tasks seen at training time.
+        * Channel MetaICL generally achieves good performance, except in the QA!QA setting. 
+            * likely because meta-training and target tasks are all relatively similar, so it does not require significant generalization capacity and Multi-task 0-shot baseline achieves very strong performance. 
+    * Gains are larger on unseen domains 
+    * Comparison to oracle 
+        * MetaICL matches or sometimes even outperforms performance of oracle without meta-training. 
+        * This is a promising signal, given that no prior work has shown models with no parameter updates on the target can match or outperform supervised models. 
+        * oracle with meta-training outperforms oracle without meta-training?so meta-training also helps in supervised learning?as well as MetaICL. 
+        * This hints that there is still room for improvement in methods that allow learning without parameter updates .
+    * Comparison to GPT-J 
+        * MetaICL, despite being 8x smaller, outperforms or matches GPT-J baselines, with an exception in QA for which GPT-J achieves particularly strong performance.
+    * We also note that GPT-J is not much better than GPT-2 Large when compared within raw LM baselines  except for QA. 
+        * In unseen domains, however, GPT-J is consistently better. 
+        * This is likely due to differences in the pretraining data 
+
+* Ablations (5.2)
+    * Number of meta-training tasks 
+        * On average, performance generally increases as the number of tasks increase, which is consistent with results in Mishra et al. (2021b); Wei et al. (2021). 
+        * Across different numbers of meta-training tasks, Channel MetaICL consistently outperforms other models. 
+        * the choice of meta-training tasks gives substantial impact in performance.
+    * Diversity in meta-training tasks 
+        * MetaICL with a diverse set outperforms MetaICL with a non-diverse set by a substantial margin. 
+        * We think that diversity among meta-training tasks is one of substantial factors that impact the success of MetaICL, although likely not the only factor.
+            * choice of meta-training tasks, such as (1) high quality data with diverse domains tend to help and (2) adversarially collected data tends to be unhelpful.  
+    * Are instructions necessary? 
+        * On one hand, learning to condition on k examples may remove the necessity of instructions. On the other hand, instructions may still be complementary and provide the model with extra useful information.
+        * To summarize,
+            (1) learning to in-context learn (MetaICL) outperforms learning to learn from instructions; 
+            (2) MetaICL and using instructions are largely complementary,
+            (3) MetaICL actually benefits more from using instructions than Multi-task 0-shot does.
+
+================================================================================
+Finetuned Language Models Are Zero-Shot Learners
+https://arxiv.org/abs/2109.01652?utm_campaign=NLP%20News&utm_medium=email&utm_source=Revue%20newsletter
+================================================================================
+
+================================================================================
+ExT5: Towards Extreme Multi-Task Scaling for Transfer Learning
+https://arxiv.org/abs/2111.10952
+================================================================================
+
+================================================================================
+Multitask Prompted Training Enables Zero-Shot Task Generalization (T0)
+https://arxiv.org/abs/2110.08207?utm_campaign=NLP%20News&utm_medium=email&utm_source=Revue%20newsletter
+================================================================================
+
+* Can zero-shot generalization instead be directly induced by explicit multitask learning? 
+* To test this question at scale, we develop a system for easily mapping general natural language tasks into a human-readable prompted form. 
+* We convert a large set of supervised datasets, each with multiple prompts using varying natural language. 
+* We fine-tune a pretrained encoder-decoder model (Raffel et al., 2020; Lester et al., 2021) on this multitask mixture 
+* The model attains strong zero-shot performance on several standard datasets, often outperforming models up to 16x its size. and huggingface.co/bigscience/T0pp.
+
+* An influential hypothesis is that large language models generalize to new tasks as a result of an implicit process of multitask learning (Radford et al., 2019). 
+* As a byproduct of learning to predict the next word, a language model is forced to learn from a mixture of implicit tasks included in their pretraining corpus. 
+* For example, by training on generic text from a web forum, a model might implicitly learn the format and structure of question answering. 
+* However, this ability requires a sufficiently large model and is sensitive to the wording of its prompts (Perez et al., 2021; Zhao et al., 2021; Reynolds and McDonell, 2021).
+* Yet, it is an open question how implicit this multitask learning really is. 
+* Given the scale of large language models and the datasets they are trained on, this explicit multitask supervision could feasibly play a large role in zero-shot generalization.
+
+* In this paper, we instead focus on intentionally and explicitly training large language models in a supervised and massively multitask fashion. 
+    * Our approach uses a multitask training mixture made up of a large set of different tasks specified in natural language prompts. 
+    * Our goal is to induce a model to better generalize to unseen tasks without requiring massive scale, as well as being more robust to the wording choices of the prompts. 
+    * To convert a large set of natural language tasks into prompted form, we use a simple templating language for structured datasets. 
+    * We develop an interface for prompt collection from public contributors that facilitated the collection of a large multitask mixture with multiple prompts per dataset.
+    * We then train a variant of the T5 encoder-decoder model (Raffel et al., 2020; Lester et al., 2021) 
+
+* Our experiments study two questions. 
+    * First, does multitask prompted training improve generalization to unseen tasks? 
+        * Yes. By showing that our model matches or exceeds the performance of GPT-3 (Brown et al., 2020) on 9 out of 11 held-out datasets, despite being about 16 smaller. 
+    * Second, does training on a wider range of prompts improve robustness to prompt wording? 
+        * we find that training on more prompts per dataset consistently improves the median and decreases the variability of performance on held-out tasks. 
+        * Training on prompts from a wider range of datasets also generally improves the median but does not decrease the variability.
+
+* In this work, we distinguish implicit multitask learning in language model pretraining from explicit multitask learning (Caruana, 1997), the technique for mixing multiple tasks into a single supervised training process.
+* Natural language prompting is the method of reformatting NLP tasks in the format of a natural language response to natural language input. 
+
+* Finally, in explaining the success of prompts, the leading hypothesis is that models learn to understand the prompts as task instructions which help them generalize to unseen tasks (Wei et al., 2021; Mishra et al., 2021; Schick and Schutze, 2021; Brown et al., 2020). 
+* However, the extent to which this success depends on the semantic meaningfulness of the prompts has been challenged (Webson and Pavlick, 2021; Logan et al., 2021). 
+* Thus, in this work, we remain agnostic as to why prompts support generalization. We only claim that prompts serve as a natural format for multitask training which empirically supports generalization to unseen tasks.
+
+* MEASURING GENERALIZATION TO UNSEEN TASKS (3)
+    * We use the term ?task? to refer to a general NLP ability that is tested by a group of specific datasets. 
+    * To evaluate zero-shot generalization to new tasks, we train on a subset of tasks and evaluate on a held-out group of tasks.
+    * Noting that grouping by task is an imperfect heuristic, we err on the side of organizing our task taxonomy based on the task format as opposed to required skill, largely based on conventions in the literature (Khashabi et al., 2020b; Vu et al., 2020; Ye et al., 2021). 
+    * All experiments use datasets in the Hugging Face datasets library (Lhoest et al., 2021).
+    * To test zero-shot generalization, we hold out all constituent datasets of four tasks: natural language inference (NLI), sentence completion, word sense disambiguation, and coreference resolution. 
+    * Additionally, we do not train our main model on any datasets that GPT- 3 used for evaluation, so that our main results will be a fair zero-shot comparison. 
+    * We verify that data for those tasks is not leaked through the pretraining corpus as detailed in Appendix E. 
+    * *we also evaluate on a subset of the datasets from BIG-Bench (BIG-bench collaboration, 2021),
+
+* A UNIFIED PROMPT FORMAT (4)
+    * All datasets are given to our model in natural language prompted form to enable zero-shot experimentation.
+    * To facilitate writing a large collection of prompts, we develop a templating language and an application that make it easy to convert diverse datasets into prompts. 
+    *  We define a prompt asconsisting of an input template and target template, along with a collection of associated metadata.
+    * The templates are functions mapping a data example into natural language for the input and target sequences. 
+    * * For example, in the case of an NLI dataset, 
+        * the example would include fields for Premise, Hypothesis, Label. 
+        An input template whereas a target template can be defined with the label choices (Choices[label])
+        * Here Choices is prompt-specific metadata that consists of the options yes, maybe, no corresponding to label being entailment (0), neutral (1) or contradiction (2). 
+    * We refer to this collection as the Public Pool of Prompts (P3). 
+        * P3 contains 1939 prompts for 171 datasets (11.3 prompts per dataset on average). 
+        * These prompts contain on average 14.4 tokens, not including variables and other elements from the templating language.  
+    * All prompts used in our experiments are sourced from P3 (except for BIG-Bench, for which the prompts are provided by its maintainers).
+
+* Model (5.1)
+    * we fine-tune a pretrained model on our multi-task training mixture of natural language prompted datasets. 
+    * Our model uses an encoder-decoder architecture with input text fed to the encoder and target text produced by the decoder. 
+    * The model is trained to autoregressively generate the target through standard maximum likelihood training. 
+    * Unlike decoder-only language models such as GPT-3, it is never trained to generate the input.
+    * All models we trained are based on T5, a Transformer-based encoder-decoder language model pretrained with a masked language modeling-style objective on 1T tokens from C4 (Raffel et al., 2020).
+    * Since T5?s pretraining objective involves filling in tokens from the input text that have been removed,  it is quite different from the conditional text generation format used in our prompted datasets. 
+    * we use T5+LM from Lester et al. (2021), which was produced by training T5 on 100B additional tokens from C4 on a standard language modeling objective. 
+    * Unless specified otherwise, we use the XXL version which has 11B parameters.
+
+* TRAINING (5.2)
+    * T0: trained on the multitask mixture detailed in Section 3 (i.e. yellow datasets in Figure 2). 
+    * T0+ is the same model but trained on a mixture that adds GPT-3?s evaluation datasets. 
+    * For T0++, we add GPT-3?s and SuperGLUE (Wang et al., 2019a)?s datasets to the training mixture which includes some held-out tasks. 
+    * We also consider T0 (3B), which corresponds to the smaller 3 billion-parameter XL variant of T5
+    * We perform checkpoint selection by choosing the checkpoint that yields the highest score on the validation splits of our training datasets. 
+    * This still satisfies true zero-shot (Perez et al., 2021) setting as we do not use any examples from any of the held-out tasks to select the best checkpoint. 
+    * At a high level, we assemble our multitask training mixture simply by combining all of the examples from all training datasets and shuffling the result. 
+    * This is equivalent to sampling from each dataset in proportion to the number of examples in the dataset.  
+    * However, the number of examples in each of our training datasets varies by two orders of magnitude. 
+    * We therefore follow the strategy used in Raffel et al. (2020) and treat any dataset with over 500?000 examples as having 500?000 / num templates examples for the purposes of sampling, where num templates is the number of templates created for the dataset. 
+    * We feed the model input and target sequences of 1024 and 256 tokens, respectively. 
+    * Following Raffel et al. (2020), we use packing to combine multiple training examples into a single sequence to reach the maximum sequence length.
+    * We use a batch size of 1024 sequences (corresponding to 220 total input tokens per batch) 
+    * the Adafactor optimizer (Shazeer and Stern, 2018). 
+    * *Following standard practice for fine-tuning T5, we use a learning rate of 1e-3 and a dropout rate of 0.1.
+
+* EVALUATION (5.3)
+    * We evaluate zero-shot generalization on 11 NLP datasets in 4 unseen tasks: natural language inference, coreference, word sense disambiguation, and sentence completion (green datasets in Figure 2). 
+    * Unless specified otherwise, we report numbers on the validation splits. 
+    * We also evaluate on 14 datasets from BIG-Bench (BIG-bench collaboration, 2021).
+    * For tasks that involve choosing the correct completion from several options (e.g. multiple choice), we follow Brown et al. (2020) and use rank scoring to evaluate our model: 
+    * we compute the log- likelihood of each of the target options under the fine-tuned model and select the option with the highest log-likelihood as the prediction. 
+    * For simplicity, we do not apply any normalization strategies to the log-likelihoods and use them as they are. 
+    * We report accuracy for every dataset.
+    * We do not perform prompt selection by comparing the performance of different prompts on the validation split; 
+        * Perez et al. (2021) highlights how such a strategy leaks information from the evaluation splits, which makes the evaluation not ?true? zero-shot. 
+    * For a given dataset, we report the median performance across the prompts for this dataset (up to 15) along with their interquartile range (Q3 - Q1) to measure the sensitivity of the model to the wording of the prompts.
+
+* RESULTS (6)
+
+* GENERALIZATION TO UNSEEN TASKS (6.1)
+    * In Figure 4, we compare T0 against our T5+LM baseline on four held-out tasks: natural language inference, coreference, sentence completion, and word sense disambiguation. 
+    * Our approach leads to significant gains over our baseline on all datasets, indicating the benefits of multitask training compared to only language modeling with an identical model and prompts.
+    * we compare our results to the zeroshot performance of various GPT-3 model variants up to 175B parameters. 
+    * T0 surpasses the performance of all GPT-3 models on 8 out of 11 held-out datasets. 
+    * Neither T0 nor GPT-3 were trained on natural language inference
+    * T0 outperforms GPT-3 on all NLI datasets (even though T5+LM does not). 
+    * T0 underperforms GPT-3 significantly on HellaSwag, and Winogrande, as does the T5+LM baseline. 
+        * We note though that for Winogrande, GPT-3 uses a specialized task format and evaluation procedure; we have not investigated whether these techniques would improve the performance of T0 or the baselines.
+    * we assess the zero-shot performance of T0, T0+, and T0++ on a subset of the BIG-Bench benchmark (BIG-bench collaboration, 2021). 
+        * BIG-Bench datasets come with their own prompts, prepared through a different process than P3. 
+        * Tasks from BIG-Bench focus on a variety of skills not covered by our training tasks
+        * We compare our model to a series of preliminary diagnostic baseline models trained by Google and evaluated by the BIG-Bench maintainers. 
+        * These models are decoder-only Transformer language models trained on a standard language modeling objective with varying model size. 
+        * We find that at least one of the T0 variants outperform all baseline models on all tasks except for StrategyQA. 
+        * In most cases, the performance of our models improves as the number of training datasets increases (i.e. T0++ outperforms T0+ which outperforms T0).
+
+* PROMPT ROBUSTNESS (6.2)
+    * Our second research question is whether training on a wider range of prompts improves robustness to the wording of the prompts. 
+    * Effect of More Prompts per Dataset 
+        * we fix d and compare three models where
+            * p = 1 (one randomly chosen original-task prompt per dataset), 
+            * p = all available prompts (corresponding to T0, on average p = 8.03), 
+            * p = 0 (corresponding to T5+LM without any prompted training).
+        * We train all models with the same hyperparameters and the same number of steps. 
+        * Figure 6 shows that, even with just one prompt per dataset (red), performance on unseen tasks can improve substantially over the baseline (blue)
+        * although the spread (interquartile range between Q1 and Q3) does not appreciably improve with p = 1. 
+        * However, further increasing p from 1 to an average of 8.03 does yield additional improvement in both median (increases for 11/11 datasets) and spread (decreases for 7/11 datasets). 
+        * This reinforces our hypothesis that training on more prompts per dataset leads to better and more robust generalization to unseen tasks.
+    * Effect of Prompts from More Datasets 
+        * In this experiment, we fix p = all available prompts and increase d from 39 to 49 to 55 (T0, T0+, T0++, respectively, datasets are given in Section 5) increasing the total number of prompts seen during training. 
+        * Figure 7 shows that the median performance of all 5 held-out datasets increases as d increases from 39 to 49. 
+        * However, the spread only decreases for 1 out of 5 datasets. 
+            * For some datasets (e.g., ANLI), this is an artifact of the fact that some prompts always perform poorly, so that when other prompts improve, the spread is stretched larger. 
+            * For other datasets (e.g., CB), however, the spread does decrease in T0+. 
+        * As d increases from 49 to 55, the median performance of all datasets again increases, but the spread only decreases for 2 out of 5 datasets. 
+        * Although further investigation is needed, it appears that increasing d does not consistently make the model more robust to the wording of prompts.
+    * Comparing T0 and GPT-3 robustness 
+        * Because Brown et al. (2020) only report one prompt per dataset with no standard deviation, we evaluate GPT-3 on RTE using the 10 prompts we prepared through OpenAI?s API
+        * results suggest that T0 is more robust to prompt formulation than GPT-3. - check numbers in the paper
+
+* DISCUSSION OF SIMILAR APPROACHES (7)
+    * Our results demonstrate that explicit multitask prompted fine-tuning substantially improves zeroshot generalization to unseen tasks
+    * we discuss two other works that share a similar approach:
+    * As details of the OpenAI model have not been published, and it is only available through a commercial API, we do not compare to it in our paper.
+    * FLAN: Wei et al. (2021)
+        * which largely follows the same method of enabling zero-shot generalization through multitask prompted training. 
+        * They focus on fine-tuning standard autoregressive language models on datasets from a diverse collection of tasks and evaluating performance on a single held-out task at a time. 
+        * Compared to FLAN, T0 zero-shot performance better on CB and RTE, similar on Story Cloze and COPA, and worse on Winogrande, ANLI, and HellaSwag. 
+        * T0++ outperforms FLAN on CB, RTE, and COPA and matches FLAN?s performance on Winogrande and ANLI. 
+        * Notably, T0 and T0++ attain this performance despite being over 10x smaller than FLAN (137B vs. 11B parameters). 
+        * Surprisingly, Wei et al. (2021) perform an ablation with a model of comparable size (8B parameters) to T0 (11B parameters) and find that that performance on held-out tasks decreases after multi-task training.
+        * key differences
+            * We use an encoder-decoder model that was pretrained with a different objective (masked language modeling) before being trained as a standard language model and finally finetuned on the multitask mixture. 
+              MLM  has repeatedly been shown to be a dramatically more effective pre-training strategy (Raffel et al., 2020; Baevski et al., 2019; Devlin et al., 2019).
+            * Our prompts are qualitatively more diverse in terms of their length and creativity
+            * We hold out multiple tasks at once, rather than only holding out a single task at a time. We made this choice in order to evaluate a single model?s ability to generalize to multiple diverse tasks.

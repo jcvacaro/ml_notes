@@ -1014,3 +1014,463 @@ https://arxiv.org/abs/2010.07079
 * Culturally speaking, the approaches in this paper are limited in both the geographical and historical senses.
     * Our methods rely only on English-speaking anno- tators located in the United States.
 * We have also assumed a consensus-based view on offensiveness, by admitting test examples based on agreement of multiple human verifiers; however, offense to minority groups for example may be missed by such a setup.
+
+================================================================================
+LaMDA: Language Models for Dialog Applications
+https://arxiv.org/abs/2201.08239
+================================================================================
+
+* have up to 137B parameters 
+* pre-trained on 1.56T words of public dialog data and web text.
+* While model scaling alone can improve quality, it shows less improvements on safety and factual grounding.
+* We demonstrate that fine-tuning with annotated data and enabling the model to consult external knowledge sources can lead to significant improvements towards the two key challenges of safety and factual grounding.
+* safety
+    * We quantify safety using a metric based on an illustrative set of human values,
+    * we find that filtering candidate responses using a LaMDA classifier fine-tuned with a small amount of crowdworker-annotated data offers a promising approach to improving model safety.
+* factual grounding,
+    * such as an information retrieval system,  a language translator,and a calculator.
+    * We quantify factuality using a groundedness metric, and we find that our approach enables the model to generate responses grounded in known sources, rather than responses that merely sound plausible.
+
+* Adiwardana et al. [17] show that dialog models are also well suited to model scaling. There is a strong correlation between model size and dialog quality.
+
+*  LaMDA makes use of a single model to perform multiple tasks: 
+    * it generates potential responses,
+    * which are then filtered for safety,
+    * grounded on an external knowledge source,
+    * and re-ranked to find the highest-quality response.
+
+* three key metrics:  (Section 4).
+    * quality
+        * is based on three components: sensibleness,  specificity,  and interestingness, SSI (Section 4).
+        * We collect annotated data that describes how sensible, specific, and interesting a response is for a multiturn context.
+        * We then use these annotations to fine-tune a discriminator to re-rank candidate responses.
+    *  safety
+        * we define an illustrative set of safety objectives that attempt to capture the behavior that the model should exhibit in a dialog (Appendix A.1),
+        * and we use a demographically diverse set of crowdworkers to label responses in multiturn dialogs for these objectives (Appendix A.2, A.3).
+        * We then use these labels to fine-tune a discriminator to detect and remove unsafe responses (Section 6.1).
+        * Our work on safety for LaMDA can be understood as a process for AI value alignment,
+    * groundedness 
+        * is introduced for the model to produce responses that are grounded in known sources wherever they contain verifiable external world information.
+        * Due to neural language models such as LaMDA’s capacity to generalize rather than just memorize, they tend to generate responses that may seem plausible, but actually contradict factual statements made in established sources.
+        * We use this metric for the model to avoid this tendency.
+        * While grounding in known sources does not guarantee factual accuracy, it allows users or external systems to judge the validity of a response based on the reliability of its source and its faithful reproduction.
+        * we collect data from a setting where crowdworkers can use external tools to research factual claims, and train the model to mimic their behavior.
+
+* We observe that: 
+    (a) model scaling alone improves quality,  but its improvements on safety and groundedness are far behind human performance,
+    (b) combining scaling and fine-tuning improves LaMDA significantly on all metrics, and although the model’s performance remains below human levels in safety and groundedness, the quality gap to measured crowdworker levels can be narrowed (labeled ‘Human’ in Figure 1).
+
+* Similar to the concept of prompts in GPT-3 [12],  we precondition LaMDA on a few turns of application-specific dialog to adapt LaMDA to the target applications.
+ * We perform experiments to compare the application-specific 
+     * helpfulness (i.e., useful and correct responses) 
+     * role consistency (i.e., agent utterances match agent role)
+ * We find that both types of models can adapt to their expected application roles fairly well,  but fine-tuned LaMDA models are significantly more helpful.
+ 
+3 LaMDA pre-training
+* Unlike previous dialog models trained on dialog data alone [17, 18], we pre-trained LaMDA on a dataset created from public dialog data and other public web documents.
+* Therefore, LaMDA can be used as a general language model prior to fine-tuning.
+* The pre-training dataset consists of 
+    * 2.97B documents,
+    * 1.12B dialogs,
+    * 13.39B dialog utterances,
+    * for a total of 1.56T words (Appendix E).
+* We used the SentencePiece library [90] to tokenize the dataset 
+    * into 2.81T byte pair encoding (BPE) tokens [91],
+    * with a vocabulary of 32K tokens.
+* For comparison, the total number of words in the training set for Meena [17] was 40B words, which is nearly 40x smaller.
+* The largest LaMDA model 
+    * has 137B non-embedding parameters, which is ~50x more parameters than Meena [17].
+    * We use a decoder-only Transformer [92] language model 
+    * The Transformer has 64 layers,
+    * dmodel = 8192,
+    * dff = 65536,
+    * h = 128,
+    * dk = dv = 128,
+    * relative attention as described in T5 [11],
+    * and gated-GELU activation as described in Raffel et al. [93].
+* We pre-trained LaMDA 
+    * on 1024 TPU-v3 chips for a total of about 57.7 days,
+    * and 256K tokens per batch.
+    * We used the Lingvo framework [94] for training and achieved 123 TFLOPS/sec with 56.5% FLOPS utilization with the 2D sharding algorithm, as described in GSPMD [95] (see Section 10 for carbon footprint estimates).
+    * We also trained smaller 2B-parameter and 8B-parameter models to measure the effects of model scaling on our metrics.
+    * Hyperparameter details for the models of different sizes can be found in Table 27, Appendix D.
+
+* Figure 2 gives an overview of the pre-training stage. We call the model before any fine-tuning "PT", for PreTrained.
+* PT uses the same sample-and-rank strategy as Meena [17] for decoding.
+* We first sample 16 independent candidate responses using top-k (k = 40) sampling (no temperature).
+* The final output is the highest-scoring candidate, where the score is based on the candidate’s log-likelihood and its length.
+
+4 Metrics
+
+4.1 Foundation metrics: Quality, Safety and Groundedness
+* Our overall quality score is an average of sensibleness, specificity, and interestingness (SSI).
+* Adiwardana et al. [17] propose the sensibleness and specificity average (SSA) metric to measure the quality of Meena.
+    * This metric is a simple average of two scores: sensibleness and specificity.
+* sensibleness, measures whether a model’s responses make sense in context and do not contradict anything that was said earlier.
+    * However, if sensibleness alone is used to evaluate models, we could inadvertently reward models for playing it safe by always producing short, generic, and boring responses.
+* specificity, is used to measure whether a response is specific to a given context.
+    * For example, if a user says “I love Eurovision” and the model responds “Me too, ” then it would score 0 on specificity, since this response could be used in many different contexts.
+* Adiwardana et al. [17] report that Meena narrows the gap to average human performance in the SSA metric.
+* As the model’s performance increases, however, we find that sensibleness and specificity are not sufficient to measure the quality of a dialog model.
+    * For example, a response to “How do I throw a ball?” could be “You can throw a ball by first picking it up and then throwing it”,
+    * An alternative deeper and more satisfying answer could be “One way to toss a ball is to hold it firmly in both hands and then swing your arm down and up again, extending your elbow and then releasing the ball upwards.
+* ” We attempt to translate this intuition into the third score, an observable quality which we call “Interestingness”.
+    * Similar to sensibleness and specificity, interestingness is measured as a 0/1 label by crowdworkers.
+    * We ask crowdworkers to label a response as interesting if they judge that it is likely to “catch someone’s attention” or “arouse their curiosity”, or if it is unexpected, witty, or insightful.
+
+* Safety: 
+    * A dialog model can achieve high quality (SSI) scores but can be unsafe for users.
+    * The safety metric follows objectives derived from Google’s AI Principles,
+        * These safety objectives are described in detail in Appendix A.1.
+
+* Groundedness: 
+    * We aim to ensure that LaMDA produces responses that can be associated with known sources whenever possible, enabling cross-checking if desired, because the current generation of language models tends to produce plausible but incorrect statements.
+    * We define groundedness as the percentage of responses containing claims about the external world that can be supported by authoritative external sources, as a share of all those containing claims about the external world.
+* ‘Informativeness’ 
+    * the percentage of responses that carry information about the external world that can be supported by known sources as a share of all responses.
+    * Informativeness only differs from groundedness in the denominator term.
+* So responses like “That’s a great idea” that do not carry any external world information do not affect groundedness, but they do affect Informativeness.
+* However, “Rafael Nadal is the winner of Roland Garros 2020" is an example of a grounded response.
+
+* ‘Citation accuracy’ 
+    * the percentage of model responses that cite the URLs of their sources as a share of all responses with explicit claims about the external world, excluding claims with well-known facts (such as "horses have four legs").
+
+4.2 Role-specific metrics: Helpfulness and Role consistency
+* The foundation metrics (quality, safety, and groundedness) measure attributes that we find important for dialog agents in general.
+* they are not dependent on any application-specific role that an agent may be designed for (e.g., teaching information about animals).
+* We measure Helpfulness and Role consistency in dialog applications, where agents have specific roles. 
+* Helpfulness: 
+    * The model’s responses are marked helpful if they contain correct information based on the user’s independent research with an information retrieval system, and the user considers them helpful.
+    * Helpful responses are a subset of informative ones, which are judged by the user to be both correct and useful.
+* Role consistency: 
+    * The model’s responses are marked role consistent if they look like something an agent performing the target role would say.
+    * This is distinct from consistency with previous responses that the agent made in the dialog, and self-consistency within a dialog is measured by the sensibleness metric instead.
+    * Role consistency refers to consistency with the definition of the agent’s role external to the conversation.
+
+5 LaMDA fine-tuning and evaluation data
+
+* Quality (Sensibleness, Specificity, Interestingness - SSI):
+    * we collect 6400 dialogs 
+    * with 121K turns 
+    * by asking crowdworkers to interact with a LaMDA instance about any topic.
+    * These dialogs are required to last 14 to 30 turns.
+    * For each response,
+        * we ask other crowdworkers to rate whether the response given the context is sensible, specific, and/or interesting,
+        * and to and mark each with ‘yes’, ‘no’, or ‘maybe’ labels.
+        * If a response is not sensible (the crowdworker did not mark it with ‘yes’), then we do not collect the labels for specificity and interestingness, and consider them to be ‘no’.
+        * if a response is not specific (the crowdworker did not mark it with ‘yes’), then we do not collect the label for interestingness, and consider it to be ‘no’.
+        * This ensures that responses are not rated positively for specificity if they are not sensible,
+        * and similarly, that responses are not rated positively for interestingness if they are not specific.
+    * Every response is labeled by 5 different crowdworkers 
+    * the response is considered sensible, specific or interesting if at least 3 out of 5 crowdworkers mark it ‘yes’.
+    * We evaluate the models based on the model’s generated responses to the Mini-Turing Benchmark (MTB) dataset[17],
+        * which consists of 1477 dialogs with up to 3 dialog turns.
+        * The MTB includes 315 single-turn dialogs,
+        * 500 2-turn dialogs,
+        * and 662 3-turn dialogs.
+    * These dialogs are fed to the model to generate the next response.
+    * Similar to above, every response is labeled sensible, specific or interesting if at least 3 out of 5 crowdworkers mark it ‘yes’.
+
+* Safety:
+    * we employ a structured approach that begins with defining the safety objectives (Appendix A.1).
+    * These objectives are used to annotate candidate responses generated by a LaMDA instance in response to human-generated prompts (Appendix A.2), using a demographically diverse set of crowdworkers (Appendix A.3).
+    * Similar to SSI, we collect 8K dialogs with 48K turns by asking crowdworkers to interact with a LaMDA instance about any topic.
+    * These dialogs are required to last 5 to 10 turns.
+    * We instruct crowdworkers to interact with the model in three different ways:
+        (a) interactions of natural form,
+        (b) interactions that touch sensitive topics,
+        (c) interactions that adversarially attempt to break the model as per the safety objectives.
+    * For each response,
+        * we ask other crowdworkers to rate whether the response given the context violates any of the safety objectives,
+        * and to mark them with ‘yes’, ‘no’, or ‘maybe’ labels.
+        * Every response is assigned a safety score of 1 if at least 2 out of 3 crowdworkers mark the response with ‘no’ for each individual safety objective.
+        * Otherwise, it is assigned a score of 0.
+    * We evaluate safety using an evaluation dataset that is a holdout sample of the adversarially collected dataset described above.
+        * This dataset consists of 1166 dialogs with 1458 turns.
+        * These dialogs are input to the model to generate the next response.
+        * Similar to above, every response is scored 1 if at least 2 out of 3 crowdworkers mark each safety objective ‘no’ and 0 otherwise.
+
+* Groundedness:
+    * we collect 4K dialogs with 40K turns by asking crowdworkers to interact with the model.
+    * This time, we request that they try to steer the conversation towards information-seeking interactions.
+    * We ask crowdworkers to rate each of the model’s dialog turns, evaluating whether the information in the turn makes any claims about the external world.
+    * We exclude claims about publicly unrecognized people, as the model can make factual claims on behalf of an improvised persona.
+        * Such claims do not require grounding on external sources (e.g., “I baked three cakes last week”),
+        * unlike claims about historical people (e.g., “Julius Caesar was born in 100 B”).
+    * We also ask crowdworkers whether they know the claims to be true.
+    * If 3 different crowdworkers all know a claim to be true, then we assume it to be common knowledge and do not check external knowledge sources before making this claim.
+    * For utterances containing claims that need to be checked,
+        * we ask crowdworkers to record the search queries that they would use to investigate them.
+    * we ask crowdworkers to edit the model’s response to incorporate brief search results from an external knowledge-retrieval system.
+    * If the search results include any content from the open web, we ask crowdworkers to include URLs that appropriately cite the sources of the knowledge used in the final response.
+    * We evaluate groundedness using an evaluation dataset with 784 turns of dialogs from Dinan et al. [96] that encompass a variety of topics.
+        * These contexts are fed to the model to generate the next response.
+        * For each response,
+            * we ask crowdworkers to rate whether the model’s response contains any factual claims,
+            * and if so, to rate whether these factual claims can be verified by checking a known source.
+            * Every response is labeled by 3 different crowdworkers.
+        * The final groundedness, informativeness, and citation accuracy labels of a given response are determined by majority voting.
+
+* Estimating these metrics for human-generated responses:
+    * We ask crowdworkers to respond to randomly selected samples of the evaluation datasets (labeled as ‘Human’ in 1, 4 and 5).
+    * The crowdworkers are explicitly informed to reply in a safe, sensible, specific, interesting, grounded, and informative manner.
+    * They are also explicitly asked to use any external tools necessary to generate these responses (e.g., including an information retrieval system).
+    * The context-response pairs are then sent for evaluation,
+        * and a consensus label is formed by majority voting, just as for model generated responses.
+
+6 LaMDA fine-tuning
+
+6.1 Discriminative and generative fine-tuning for Quality (SSI) and Safety 
+* We create LaMDA using several fine-tunings applied to the pre-trained model (PT).
+    * These include a mix of generative tasks that generate response given contexts,
+    * and discriminative tasks that evaluate quality and safety of a response in context.
+* This results in a single model that can function as both a generator and a discriminator.
+* Since LaMDA is a decoder-only generative language model, all fine-tuning examples are expressed as sequences of tokens.
+* Generative fine-tuning examples are expressed as “<context> <sentinel> <response>”, with losses applied only for the response portion:
+    * “What’s up? RESPONSE not much.”
+* Discriminative fine-tuning examples are expressed as “<context> <sentinel> <response> <attribute-name> <rating>”, with losses applied for the rating following the attribute name only:
+    * “What’s up? RESPONSE not much. SENSIBLE 1”
+    * “What’s up? RESPONSE not much. INTERESTING 0”
+    * “What’s up? RESPONSE not much. UNSAFE 0”
+
+* After generating a response given a context, evaluating a discriminator involves computing 
+    * P(“<desired-rating>” | “<context> <sentinel> <response> <attribute-name>”).
+* Since the model has already processed “<context> <sentinel> <response>”, evaluating the discriminator simply involves processing a few additional tokens:
+    * “<attributename> <desired rating>”.
+* First, we fine-tune LaMDA to predict the SSI and safety ratings of the generated candidate responses.
+* Then, we filter out candidate responses for which the model’s safety prediction falls below a threshold during generation.
+* Candidate responses that remain after filtering for safety are then ranked for quality.
+* During ranking, sensibleness is given a weight three times higher than specificity and interestingness, as this was found to work well for all metrics 
+    * i.e., 3 * P(sensible) + P(specific) + P(interesting)
+* The top ranked candidate is selected as the next response.
+* LaMDA SSI and safety discriminators are also used to score and filter 2.5M turns of dialog data sampled from the pre-training dataset (Section 3),
+    * resulting in 800K turns of safe, sensible, specific and interesting dialogs.
+* We then fine-tune the LaMDA model over this dataset to generate the response in a given context.
+
+6.2 Fine-tuning to learn to call an external information retrieval system
+* Language models such as LaMDA tend to generate outputs that seem plausible,  but contradict facts established by known external sources.
+* One possible solution to this problem could be to increase the size of the model, based on the assumption that the model can effectively memorize more of the training data.
+    * However, some facts change over time, Lazaridou et al. (2021) call this the temporal generalization problem [97].
+    * Recent work proposed using a dynamic or incremental training architecture to mitigate this issue (e.g., [97, 98]).
+* We present our approach to fine-tuning by learning to consult a set of external knowledge resources and tools.
+
+* The toolset (TS):
+    * We create a toolset (TS) that includes an information retrieval system, a calculator, and a translator.
+    * TS takes a single string as input and outputs a list of one or more strings.
+    * Each tool in TS expects a string and returns a list of strings.
+    * The information retrieval system is also capable of returning snippets of content from the open web, with their corresponding URLs.
+    * The TS tries an input string on all of its tools, and produces a final output list of strings by concatenating the output lists from every tool in the following order: calculator, translator, and information retrieval system.
+    * A tool will return an empty list of results if it can’t parse the input (e.g., the calculator cannot parse “How old is Rafael Nadal?”), and therefore does not contribute to the final output list.
+
+* Dialog collection:
+    * We collect 40K annotated dialog turns annotated (generative data).
+    * We also collect 9K dialog turns, in which the LaMDA’s generated candidates are labeled ‘correct’ or ‘incorrect’, to be used as input data for the ranking task (discriminative data).
+    * We collect a set of human-human dialogs between crowdworkers, focused on information-seeking interactions, and evaluate whether their statements can be supported by known authoritative sources.
+    * As seen in Figure 4, it is notable that they make well-supported claims at a higher rate if they have access to TS.
+    * we decided to fine-tune our language model to provide attributions for its responses by looking up its claims using a toolset.
+    * To collect training data for the fine-tuning used in the algorithm, we use both static and interactive methods again.
+    * The key difference from the other sub-tasks is that the crowdworkers are not reacting to the model’s output, but rather intervening to correct it in a way that LaMDA can learn to imitate.
+    * In the interactive case,     * a crowdworker carries out a dialog with LaMDA,
+    * in the static case, they read over records of earlier dialogs, turn by turn.
+    * The crowdworker decides whether each statement contains any claims that might require reference to an external knowledge source.
+    * If so, they are asked whether the claims are about anything other than the persona improvised by LaMDA, and then whether they go beyond simple matters of common sense.
+    * If the answer to any of these questions is ’no’, the model’s output is marked ‘good’, and the dialog moves on.
+    * Otherwise, the crowdworker is asked to research the claims using the toolset, via a text-in and text-out interface.
+    * The interface to the set of tools used here is identical to the service used by the algorithm at inference time.
+        * Given a general text query, the information retrieval system returns a set of brief, text-only snippets in rank order.
+        * Snippets of open-web content include URLs for their source, answers provided directly by the information retrieval system, (e.g., the current time) or by the calculator tool do not.
+    * When the user has finished running queries, they have the opportunity to rewrite the model’s statement to include well-sourced claims.
+        * If they used open-web content, we ask them to cite the URLs needed to support any responses which contain information pertaining to the external world.
+        * URLs can be appended to the end of the message, or if the context warrants it, they can be attached inline to particular words in the response using Markdown format.
+
+* Fine-tuning:
+    * The first task 
+        * takes the multiturn dialog context to date and the response generated by the base model.
+        * It then generates a special string (“TS” for toolset) indicating the following text is a query 
+        * (e.g., “How old is Rafael Nadal?”) that should be sent to the toolset: context + base -> “TS, Rafael Nadal’s age”.
+    * The second task 
+        * takes the snippet returned by a tool, and a dialog statement (e.g., “He is 31 years old right now” + “Rafael Nadal / Age / 35”).
+        * It then predicts the grounded version: context + base + query + snippet -> “User, He is 35 years old right now”.
+        * Alternatively,this task can also output an additional research query.
+            * For example, context + base + query + snippet -> “TS, Rafael Nadal’s favorite song”.
+
+* At inference time,
+    * the model’s output is directed to the information retrieval system or to the user, depending on whether the first generated string is ‘TS’ or ‘User’.
+    * For instance, a dialog might include the following statement from the user:
+        * USER: What do you think of Rosalie Gascoigne’s sculptures?
+        * LAMDA-BASE response: They’re great, and I love how her work changed through her life. I like her later work more than her earlier ones. Her influence is also super interesting - did you know she was one of the artists that inspired Miró?
+        * cool, but it is wrong:  Miró was active from 1918 to the late 1960s, and Gascoigne’s first solo exhibitions were in the early 1970s.
+
+* At this point, the ‘Research’ phase of the model outputs some queries to TS to assess the ‘Base’ output’s claims.
+    * Recall that the ‘Research’ phase is one specialized task from a set that belong to a single multi-tasking model (e.g., ‘Base’ dialog response generation task, safety, and quality tasks).
+    * Query generation is entirely based on the model fine-tuning, and there is no heuristic component.
+    * The model’s output determines the number of queries—the research loop continues until the model generates output addressed to the user—but we impose a maximum at inference time to eliminate the possibility of an infinite loop. In this case, 4.
+    * By repeating the same query, the model receives the second-ranked result snippet, which includes more details from the same source in this case.
+    * With this context, the ‘Research’ phase elects to generate output to the user. 
+    * The choice between querying the information retrieval system or responding to the user is determined by the first word output by LaMDA-Research, which identifies the next recipient.
+    * The dialog tone is similar to the ‘Base’ version of the response, but the model replaces the unverified claim (since no evidence for it can be seen in the TS results) with a different statement based on a source found with TS.
+    * check example in page 9 and figure 3
+    * The final output is: LAMDA: Oh wow, her life course is so inspiring. Did you know she was a practitioner of Japanese flower arrangement before turning to sculpture? https://artsearch.nga.gov.au/detail.cfm?irn=8774&pictaus=true
+
+7 Results on foundation metrics
+
+* Leveraging datasets in table 1, we perform two levels of fine-tuning, as discussed in Section 6:
+* FT quality-safety: Section 6.1 
+    * fine-tune the pre-trained model (PT) to train discriminators that predict quality and safety labels.
+    * The generated candidate responses are filtered at inference time by their safety scores,
+    * and re-ranked by a weighted sum of the three quality score types.
+    * PT is also fine-tuned to generate in-context responses from a clean sample of pre-training dialog data filtered using LaMDA discriminators.
+* FT groundedness (LaMDA): Section 6.2
+    * fine-tune FT quality-safety to generate calls to an external information retrieval system to provide attributed responses.
+    * The model is also fine-tuned to jointly predict the quality and the type (i. e., calling a certain tool or replying to the user) of the next action.
+
+* figure 4 shows that fine-tuning (in particular LaMDA) produces a significant improvement in quality, safety and groundedness across all model sizes.
+* quality metrics (sensibleness, specificity, and interestingness) generally improve with model size with or without fine-tuning, but they are consistently better with fine-tuning.
+* Safety does not seem to benefit much from model scaling without fine-tuning.
+* We expect this as the pre-training alone only optimizes perplexity of the next token, and these tokens follow the distributions of the original corpus, which contains both safe and unsafe examples.
+    * However, scaling along with safety fine-tuning significantly improves safety.
+* Groundedness improves as model size increases,
+    * perhaps because larger models have a greater capacity to memorize uncommon knowledge.
+* Fine-tuning, however, allows the model to access external knowledge sources.
+    * This effectively allows the model to shift some of the load of remembering knowledge to an external knowledge source and achieves 73.2% Groundedness and 65% Citation Accuracy.
+    * In other words, 73.2% of the responses containing statements about the external world were attributable to known sources,
+    * and 65% of the response included citation (i.e., URLs to sources) when required.
+
+* In summary, scaling up alone improves the pre-trained model quality (sensibleness, specificity, and interestingness) and groundedness (groundedness and informativeness) metrics, but it does not improve safety much.
+
+* Fine-tuning with crowdworker-annotated data, however, turns out to be an effective method for improving all metrics.
+    * In some cases, fine-tuning these same models allows us to obtain results equivalent to having a significantly larger model.
+    * Note that in several metrics, our fine-tuned models almost reach the crowdworker quality levels, and our fine-tuned models exceed crowdworker quality for interestingness (labeled ‘Human’ in Figures 4 and 5).
+    * However, this may be a weak baseline as crowdworkers are not extensively trained and were not incentivized to generate high-quality responses.
+    * although we have made good progress in our safety and groundedness metrics, our models are still far from the crowdworkers’ performance.
+    * For groundedness and Informativeness, we also show crowdworker quality without access to information retrieval tools.
+        * LaMDA models surpass crowdworker quality for informativeness when the crowdworkers do not have access to such tools,
+        * but LaMDA models are still far behind crowdworker quality when crowdworkers have access to these tools.
+
+8 Domain grounding
+
+* perform domain-appropriate roles through pre-conditioning, also known as domain grounding.
+* Here we explore such domain grounding in two areas: (table 2)
+    (1) LaMDA playing the role of a famous object such as Mount Everest for the purpose of education,
+    (2) LaMDA playing the role of a music recommendation agent.
+* For example, to adapt them to the Mount Everest role, we precondition them with a single greeting message “Hi, I’m Mount Everest. What would you like to know about me?” at the very beginning of the dialog.
+
+* To evaluate the agents,
+    * we ask crowdworkers to have dialogs with each of the two LaMDA and the two PT instances,
+    * producing 600 dialog turns in total.
+    * we ask another set of crowdworkers to label each of the generated responses in their original context according to whether they are role-consistent and helpful (defined in Section 4.2) relative to their target roles.
+    * Each response is labeled three times by different crowdworkers.
+    * All the crowdworkers are provided with the role definitions that are listed in Table 2 to understand what to expect from each agent.
+    * LaMDA applications perform significantly better than PT applications in Helpfulness as shown quantitatively in Table 5 and qualitatively in Table 6.
+    * Although the reasons for PT losses vary, the most common error patterns could be attributed to PT’s lower performance on foundation metrics such as safety, groundedness and quality (foundation metrics are shown in Figure 4).
+    * All LaMDA and PT instances score fairly well on role consistency, occasionally breaking character.
+    * LaMDA Music has a few statements as grounding (shown in the Table 3 caption), in order to make sure it assumes the context of the dialog is largely about music recommendation and, therefore, interprets otherwise ambiguous user utterances like “anything” to mean the same as “recommend me any music”.
+    * During evaluation, crowdworkers use an information retrieval system to verify links and information that the model provides.
+    * Despite current overall advances in groundedness (Figure 4), LaMDA Mount Everest provides facts that could not be attributed to known sources in about 30% of responses, resulting in losses in helpfulness.
+    * Similarly, LaMDA Music misses providing an actual music recommendation in about 9% of responses, and provides a broken link in about 7% of responses.
+
+9 Discussion and limitations
+
+* Perhaps the most noteworthy aspect of our study is that significant progress can be made towards better quality and safer dialog models with modest amounts of human-annotated fine-tuning data (less than 0.001% of pre-training data).
+* Collecting fine-tuning datasets brings the benefits of learning from nuanced human judgements, but it is an expensive, time consuming, and complex process.
+* The complexity of capturing human subjective judgements limits the efforts that we took to assess crowdworker rating quality against that of expert-annotated data, and to maximize clarity by iteratively designing  our rating instructions.
+* we did not examine patterns of disagreement between crowdworkers.
+* Future work will include selecting crowdworkers that mirror the system’s target users, and looking at ways to improve the quality of labels, through training and evaluation approaches that also account for systematic disagreements between crowdworkers due to social and cultural norms and values [99].
+* Fine-tuning can improve output groundedness, but the model can still generate responses that do not accurately reflect the contents of authoritative external sources.
+* Our progress on this has been limited to simple questions of fact, and more complex reasoning remains open for further study (see example dialogs 15)).
+* while the model generates responses that make sense most of the time, it can still suffer from subtler quality issues.
+    * it may repeatedly pledge to respond to a user’s question in the future,
+    * prematurely try to end the conversation,
+    * or make up incorrect details about the user.
+* We have shown that fine-tuning can improve safety metrics on average by defining safety objectives (Appendix A.1) for our safety fine-tuning
+* future work will also need to focus on how fine-tuning can cope with the long tail of inappropriate responses that LaMDA and other large language models can generate.
+* it is also important to note that mitigating safety risks does not guarantee complete reliability.
+* Another limitation was that our crowdworker population may not be fully reflective of the user base.
+
+9.1 Examining bias
+* it is now increasingly well-understood that large language models trained on unlabeled datasets will learn to imitate patterns and biases inherent in their training sets [100].
+* For example, the axes of marginalization differ greatly across geo-cultural contexts, and how they manifest in pre-trained language models is an under-studied area [101].
+* Another limitation of our safety approach is that it may still propagate some representational harms present in the training datasets, even if the individual examples do not violate any of the safety objectives.
+    * Since LaMDA responses are non-deterministic, such biases can appear by statistically favoring certain groups on the basis of race, gender, sexuality and so on.
+* Known approaches to mitigate undesirable statistical biases in generative language models include attempts to:
+    * filter pre-training data,
+    * train separate filtering models,
+    * create control codes to condition generation,
+    * and fine-tuning models,
+* it is critical to also consider the downstream applications and the socio-technical ecosystems where they will be deployed when measuring the impact of these efforts in mitigating harm.
+    * For example, bias mitigations in certain contexts might have counter-intuitive impacts in other geocultural contexts [101].
+
+9.2 Adversarial data collection
+* We use adversarial-intent conversations to improve the breadth of labeled data for fine-tuning (Appendix A.2).
+* During adversarial conversation generation, expert analysts engage with LaMDA and attempt to deliberately provoke responses that violate our safety objectives.
+* Adversarial testing has generally proven to be effective at discovering limitations in machine learning models and drawing out undesired responses from various software (e.g.  Google Bug bounty program https://bughunters.google.com/about/rules/6625378258649088),
+* We are also seeing efforts to apply it to generative models (e.g., Dynabench https://dynabench.org/). 
+* A limitation of our approach is that most of the participants are able to find commonly occurring problems, but not rarer ones.
+
+9.3 Safety as a concept and a metric
+* The results we present in this paper aggregate fine-grained ratings on a diverse set of safety objectives (see Appendix A.1) into a single metric.
+    * This is a key limitation of this work, since it leaves little room for disentangling different objectives, or weighting objectives differently.
+* Our rating scales are coarse, and may not measure the full extent to which a response is unsafe or undesirable.
+    * For example, some statements or behaviors may cause more offense than others, and many behaviors considered reasonable by some groups may offend others within a society.
+* Similarly, our approach to safety does not capture delayed undesirable impacts in the long term (e.g., developing a dependency relation [103]).
+* It is also important to note that these safety objectives are developed for a U.S. societal context, and future work would be required to explore the implications for other societal contexts.
+* Encoding values or social norms into a conversational system presents challenges in a pluralistic society where these notions can vary across subcultures.
+    * Our methodology could be used to encode such different notions, but any single safety objective and fine-tuning dataset will not be able to simultaneously accommodate divergent cultural norms.
+
+9.4 Appropriateness as a concept and a metric
+* While safety and quality should be considered a minimum threshold for appropriate responses, additional considerations are necessary to support a positive user experience.
+* Politeness and agreeability objectives have distinct sociolinguistic characteristics, and therefore, should be measured separately from safety characteristics.
+* users have a tendency to anthropomorphize and extend social expectations to non-human agents that behave in human-like ways, even when explicitly aware that they are not human [105].
+* These expectations range from projecting social stereotypes [106] to reciprocating self-disclosure with interactive chat systems [105].
+* As a result, methods and practices for tuning appropriateness in generative language models are needed.
+* A challenge to meeting this need is that social appropriateness is not universal. It is highly contextual and must be assessed in relation to relevant social and cultural contexts,
+
+9.5 Cultural responsiveness
+* Any meaningful measure of safety for these objectives should take into account the societal context where the system will be used, employing a “participatory finetuning” approach that brings relevant communities into the human-centered data collection and curation processes.
+* In addition to cultural differences in how safety is understood, individual differences rooted in lived experience can impede attempts to define any single agreed-upon safety metric.
+
+9.6 Impersonation and anthropomorphization
+* it is important to acknowledge that LaMDA’s learning is based on imitating human performance in conversation, similar to many other dialog systems [17, 18].
+* Humans may interact with systems without knowing that they are artificial, or anthropomorphizing the system by ascribing some form of personality to it.
+* adversaries could potentially attempt to tarnish another person’s reputation, leverage their status, or sow misinformation by using this technology to impersonate specific individuals’ conversational style.
+
+9.7 Future work
+* We are encouraged by the progress that relatively modest amounts of fine-tuning data made possible, in spite of the limitations of our current approach.
+* we intend to expand and revise the dimensions captured by our safety objectives and significantly increase the volume of labeled training data that we collect to train our discriminators.
+* We will need to continue to look carefully at crowdworker recruitment, training, and performance evaluation, as well as calibrate for cross-cultural differences in values and opinions.
+* Another potential area of exploration is to study how different applications may warrant distinct levels of safety, quality, and groundedness based on the risk/benefit tradeoffs of these individual applications.
+
+10 Energy and Carbon Footprint Estimate of LaMDA
+* The largest model in LaMDA was pre-trained 
+    * on 1024 TPU-V3 chips 
+    * and 123 TFLOPS/s 
+    * for 57.7 days 
+    * with FLOPS utilization of 56.5% 
+    * using GSPMD [95].
+* The total FLOPS is 56.5% * 123 TFLOPS/s * 1024 chips * 57.7 days = 3.55E+23,
+    * which is higher than 3.14E+23, corresponding to the total FLOPS of GPT-3 [12].
+* The PUE of our datacenter is 1.10,
+    * and Measured System Average Power per Accelerator for our experiment on TPUv3 is roughly 289W (borrowing Meena measurements from [108]),
+    * which means the total energy cost of our model is 57.7 days * 1024 chips * 289W * 1.1 * 24 hours/day = 451 MWh, 0.4X the energy of GPT-3 [12,108].
+* At the time of training, our energy mix (kg CO2e per kWh) is around 0.056,
+* so the total carbon footprint of LaMDA’s pre-training of the largest model is approximately 25.2 tCO2e.
+* The carbon footprint of pre-training of smaller models and fine-tuning of all models is approximately 0.7 tCO2e (see Table 27),
+* which brings the total footprint of LaMDA to approximately 26 tCO2e.
+* The carbon footprint of training LaMDA models is hence 21.2X smaller than GPT-3 [108],
+* and approximately equivalent to 22 passengers taking a round trip between San Francisco and New York (1.2 tCO2e / passenger [108]).
+* LaMDA uses more FLOPS with 0.4X the energy of GPT-3 but its carbon footprint for training is significantly smaller than GPT-3 primarily because our energy mix is more optimized 
+* (LaMDA:0.056, GPT-3:0.429 [108]).
+
+11 Conclusion
+* This paper studies the importance of 
+    * scale, 
+    * annotated data for model fine-tuning, 
+    * and the use of information retrieval as a tool in dialog modeling.
+* Our experiments show that scaling alone offers improvements in all metrics,
+* but its improvements on safety and groundedness are far behind human performance.
+* We find that crowd-annotated data is an effective tool for driving significant additional gains.
+* We also find that calling external APIs (such as an information retrieval system) offers a path towards significantly improving groundedness, which we define as the extent to which a generated response contains claims that can be referenced and checked against a known source.
+* We perform experiments to compare the per-application helpfulness (i.e., useful and correct responses) and role consistency of pre-training-only (PT) and LaMDA models when subject to the same application-specific preconditioning.
+* We pre-condition the models on a small number of turns of application-specific dialogs (similar to the concept of prompts in GPT-3) to quickly adapt LaMDA to these applications.
+* We find that both types of models can adapt to their expected context, with more than four out of five responses staying consistent with their assigned roles.
+* However, LaMDA-based applications are significantly more helpful than PT applications.

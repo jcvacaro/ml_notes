@@ -659,13 +659,6 @@ https://arxiv.org/pdf/1910.10683.pdf
      * Corrupting spans was also previously considered as a pre-training objective for BERT, where it was found to improve performance (Joshi et al., 2019).
 
 ================================================================================
-ERNIE: Enhanced Language Representation with Informative Entities
-https://arxiv.org/abs/1905.07129
-================================================================================
-
-
-
-================================================================================
 PMI-MASKING: PRINCIPLED MASKING OF CORRELATED SPANS
 https://arxiv.org/abs/2010.01825
 ================================================================================
@@ -1395,3 +1388,277 @@ https://arxiv.org/abs/2110.08207?utm_campaign=NLP%20News&utm_medium=email&utm_so
               MLM  has repeatedly been shown to be a dramatically more effective pre-training strategy (Raffel et al., 2020; Baevski et al., 2019; Devlin et al., 2019).
             * Our prompts are qualitatively more diverse in terms of their length and creativity
             * We hold out multiple tasks at once, rather than only holding out a single task at a time. We made this choice in order to evaluate a single model?s ability to generalize to multiple diverse tasks.
+
+================================================================================
+ERNIE: Enhanced Language Representation with Informative Entities
+https://arxiv.org/abs/1905.07129
+================================================================================
+
+* the existing pre-trained language models rarely consider incorporating knowledge graphs (KGs),
+* we utilize both large-scale textual corpora and KGs to train an enhanced language representation model (ERNIE), which can take full advantage of lexical, syntactic, and knowledge information simultaneously.
+
+* figure 1
+
+* For incorporating external knowledge into language representation models, there are two main challenges.
+    (1) Structured Knowledge Encoding: regarding to the given text, how to effectively extract and encode its related informative facts in KGs for language representation models is an important problem; 
+    (2) Heterogeneous Information Fusion: the pre-training procedure for language representation is quite different from the knowledge representation procedure, leading to two individual vector spaces. How to design a special pre-training objective to fuse lexical, syntactic, and knowledge information?
+
+* we propose Enhanced Language RepresentatioN with Informative Entities (ERNIE),
+    * pretrains a language representation model on both large-scale textual corpora and KGs:
+    (1) For extracting and encoding knowledge information,
+        * we firstly recognize named entity mentions in text and then align these mentions to their corresponding entities in KGs.
+        * Instead of directly using the graph-based facts in KGs, we encode the graph structure of KGs with knowledge embedding algorithms like TransE (Bordes et al., 2013),
+        * and then take the informative entity embeddings as input for ERNIE.
+        * Based on the alignments between text and KGs, ERNIE integrates entity representations in the knowledge module into the underlying layers of the semantic module.
+    (2) Similar to BERT, we adopt the masked language model and the next sentence prediction as the pre-training objectives.
+        * for the better fusion of textual and knowledge features, we design a new pre-training objective by randomly masking some of the named entity alignments in the input text and asking the model to select appropriate entities from KGs to complete the alignments.
+        * our objectives require models to aggregate both context and knowledge facts for predicting both tokens and entities, and lead to a knowledgeable language representation model.
+
+* We conduct experiments on two knowledgedriven NLP tasks,
+    * i.e.,  entity typing and relation classification.
+    * better than BERT
+
+3 Methodology
+
+3.1 Notations
+
+* n is the length of the token sequence.
+* m is the length of the entity sequence. 
+* Note that m is not equal to n in most cases, as not every token can be aligned to an entity in KGs. 
+* we denote the whole vocabulary containing all tokens as V
+* and the entity list containing all entities in KGs as E. 
+* If a token w has a corresponding entity e, their alignment is defined as f(w) = e.
+* In this paper, we align an entity to the first token in its named entity phrase, as shown in Figure 2.
+
+3.2 Model Architecture
+
+* As shown in Figure 2, the whole model architecture of ERNIE consists of two stacked modules:
+    (1) the underlying textual encoder (T-Encoder) responsible to capture basic lexical and syntactic information from the input tokens,
+    (2) the upper knowledgeable encoder (K-Encoder) responsible to integrate extra token-oriented knowledge information into textual information from the underlying layer, so that we can represent heterogeneous information of tokens and entities into a united feature space.
+* we denote the number of T-Encoder layers as N,
+* the number of K-Encoder layers as M.
+* In this paper, tokens are at the subword level.
+
+* To be specific, 
+    * given a token sequence w_1, ..., w_n
+    * and its corresponding entity sequence e_1, ..., e_m
+    * the textual encoder firstly sums the token embedding, segment embedding, positional embedding for each token to compute its input embedding, 
+    * and then computes lexical and syntactic features w1, ..., w_n
+    *  {w_1, , w_n} = T-Encoder({w_1, ..., w_n})
+    * T-Encoder is like BERT
+
+* After computing {w_1, ..., w_n}, ERNIE adopts a knowledgeable encoder K-Encoder to inject the knowledge information into language representation.
+* To be specific,
+    * we represent {e_1, ..., e_m} with their entity embeddings {e_1, ..., e_m}, which are pre-trained by the effective knowledge embedding model TransE (Bordes et al., 2013).
+    * Then, both {w_1, ..., w_n} and {e_1, ..., e_m} are fed into K-Encoder for fusing heterogeneous information and computing final output embeddings,
+    * {w_1^o, ..., w_n^o},{e_1^o, ..., e_m^o} = K-Encoder({w_1, ..., w_n},{e_1, ..., e_m})
+    * o: means features for a specific task
+
+3.3 Knowledgeable Encoder
+
+* designed for encoding both tokens and entities as well as fusing their heterogeneous features.
+* In the i-th aggregator, the input token embeddings w and entity embeddings e, from the preceding aggregator are fed into two multi-head self-attentions (MH-ATTs) respectively,
+
+{w_1^i, ..., w_n^i} = MH-ATT({w_1^i-1, ..., w_n^i-1})
+{e_1^i, ..., e_m^i} = MH-ATT({e_1^i-1, ..., e_m^i-1})
+
+* Then, the i-th aggregator adopts an information fusion layer for the mutual integration of the token and entity sequence
+
+h_j = GELU(W_t^i * w_j^i + W_e^i * e_k^i + b^i)
+w_j^i = GELU(W_t^i * h_j + b_t^i)
+e_k^i = GELU(W_e^i * h_j + b_e^i)
+
+* For the tokens without corresponding entities, the information fusion layer computes the output embeddings without integration as follows,
+
+h_j = GELU(W_t^i * w_j^i + b^i)
+w_j^i = GELU(W_t^i * h_j + b_t^i)
+
+* For simplicity, the i-th aggregator operation is denoted as follows,
+
+{w_1^i, ..., w_n^i},{e_1^i, ..., e_m^i} = Aggregator({w_1^i-1, ..., w_n^i-1},{e_1^i-1, ..., e_m^i-1})
+
+* The output embeddings of both tokens and entities computed by the top aggregator will be used as the final output embeddings of the knowledgeable encoder K-Encoder.
+
+3.4 Pre-training for Injecting Knowledge
+
+* we propose a new pre-training task for ERNIE, which randomly masks some token-entity alignments and then requires the system to predict all corresponding entities based on aligned tokens.
+* As our task is similar to training a denoising auto-encoder (Vincent et al.,2008), we refer to this procedure as a denoising entity auto-encoder (dEA).
+* Considering that the size of E is quite large for the softmax layer, we thus only require the system to predict entities based on the given entity sequence instead of all entities in KGs.
+* we define the aligned entity distribution for the token wi as follows,
+    * check formula - softmax with w and e
+
+* Considering that there are some errors in tokenentity alignments, we perform the following operations for dEA:
+    (1) In 5% of the time, for a given token-entity alignment, we replace the entity with another random entity, which aims to train our model to correct the errors that the token is aligned with a wrong entity; 
+    (2) In 15% of the time, we mask token-entity alignments, which aims to train our model to correct the errors that the entity alignment system does not extract all existing alignments; 
+    (3) In the rest of the time, we keep tokenentity alignments unchanged, which aims to encourage our model to integrate the entity information into token representations for better language understanding.
+
+* Similar to BERT, ERNIE also adopts the masked language model (MLM) and the next sentence prediction (NSP) 
+    * The overall pre-training loss is the sum of the dEA, MLM and NSP loss.
+
+3.5 Fine-tuning for Specific Tasks
+
+* As shown in Figure 3, for various common NLP tasks, ERNIE can adopt the fine-tuning procedure similar to BERT.
+* We can take the final output embedding of the first token, which corresponds to the special [CLS] token, as the representation of the input sequence for specific tasks.
+* For some knowledge-driven tasks (e.g., relation classification and entity typing), we design special finetuning procedure:
+* For relation classification,
+    * modifies the input token sequence by adding two mark tokens to highlight entity mentions.
+    * These extra mark tokens play a similar role like position embeddings in the conventional relation classification models (Zeng et al., 2015).
+    * Then, we also take the [CLS] token embedding for classification.
+    * Note that we design different tokens [HD] and [TL] for head entities and tail entities respectively.
+* The specific fine-tuning procedure for entity typing 
+    * is a simplified version of relation classification.
+    * we argue that the modified input sequence with the mention mark token [ENT] can guide ERNIE to combine both context information and entity mention information attentively.
+
+4 Experiments
+
+4.1 Pre-training Dataset
+
+* we adopt the parameters of BERT released by Google3 to initialize the Transformer blocks for encoding tokens.
+* Since pre- training is a multi-task procedure consisting of NSP, MLM, and dEA,
+    * we use English Wikipedia as our pre-training corpus and align text to Wikidata.
+* After converting the corpus into the formatted data for pre-training,
+    * the annotated input has nearly 4, 500M subwords and 140M entities,
+    * and discards the sentences having less than 3 entities.
+* Before pre-training ERNIE
+    * we adopt the knowledge embeddings trained on Wikidata4 by TransE as the input embeddings for entities.
+    * To be specific,
+        * we sample part of Wikidata which contains 5, 040, 986 entities and 24, 267, 796 fact triples.
+        * The entity embeddings are fixed during training and the parameters of the entity encoding modules are all initialized randomly.
+
+4.2 Parameter Settings and Training Details
+* we denote the hidden dimension of token embeddings and entity embeddings as H_w, H_e respectively
+* and the number of self-attention heads as A_w, A_e respectively.
+* we have the following model size:
+    * N = 6, M = 6, H_w = 768, H_e = 100, A_w = 12, A_e = 4.
+* The total parameters are about 114M.
+    * The total amount of parameters of BERTBASE is about 110M,
+    * which means the knowledgeable module of ERNIE is much smaller than the language module and has little impact on the run-time performance.
+* we only pre-train ERNIE on the annotated corpus for one epoch.
+* To accelerate the training process, we reduce the max sequence length from 512 to 256 as the computation of selfattention is a quadratic function of the length.
+* To keep the number of tokens in a batch as same as BERT, we double the batch size to 512.
+Except for setting the learning rate as 5e-5, we largely follow the pre-training hyper-parameters used in BERT.
+
+* For fine-tuning,
+    * most hyper-parameters are the same as pre-training, except batch size, learning rate, and number of training epochs.
+    * batch size:32, 
+    * learning rate (Adam):5e-5, 3e-5, 2e-5, 
+    * number of epochs ranging from 3 to 10.
+
+* We also evaluate ERNIE on the distantly supervised dataset, i.e., FIGER (Ling et al., 2015).
+* As the powerful expression ability of deeply stacked Transformer blocks, we found small batch size would lead the model to overfit the training data.
+    * Hence, we use a larger batch size and less train- ing epochs to avoid overfitting,
+    * and keep the range of learning rate unchanged, i.e., batch size:2048, number of epochs:2,3.
+
+* As most datasets do not have entity annotations, we use TAGME (Ferragina and Scaiella, 2010) to extract the entity mentions in the sentences and link them to their corresponding entities in KGs.
+
+4.3 Entity Typing
+* Given an entity mention and its context, entity typing requires systems to label the entity mention with its respective semantic types.
+
+* To evaluate performance on this task, we fine-tune ERNIE on two well-established datasets 
+    * FIGER (Ling et al., 2015) 
+        * The training set of FIGER is labeled with distant supervision, and its test set is annotated by human.
+    * Open Entity (Choi et al., 2018).
+        * completely manually-annotated dataset.
+    * The statistics of these two datasets are shown in Table 1.
+
+* We compare our model with the following baseline models for entity typing:
+    * NFGEC.
+        * a hybrid model proposed by Shimaoka et al. (2016).
+        * it combines the representations of entity mention, context and extra hand-craft features as input, and is the stateof- the-art model on FIGER.
+        * As this paper focuses on comparing the general language representation abilities of various neural models, we thus do not use the hand-craft features in this work.
+    * UFET.
+        * For Open Entity, we add a new hybrid model UFET (Choi et al., 2018) for comparison.
+        * UFET is proposed with the Open Entity dataset, which uses a Bi-LSTM for context representation instead of two Bi-LSTMs separated by entity mentions in NFGEC.
+
+* Besides NFGEC and UFET, we also report the result of fine-tuning BERT with the same input format introduced in Section 3.5 for fair com parison.
+* we compare NFGEC, BERT, ERNIE on FIGER,
+    * adopt strict accuracy, loose macro, loose micro scores for evaluation.
+* We compare NFGEC, BERT, UFET, ERNIE on Open Entity,
+    * adopt precision, recall, micro- F1 scores for evaluation.
+
+* The results on FIGER are shown in Table 2.
+    (1) * BERT achieves comparable results with NFGEC on the macro and micro metrics.
+        * However, BERT has lower accuracy than the best NFGEC model.
+        * As strict accuracy is the ratio of instances whose predictions are identical to human annotations, it illustrates some wrong labels from distant supervision are learned by BERT due to its powerful fitting ability.
+    (2) Compared with BERT, ERNIE significantly improves the strict accuracy, indicating the external knowledge regularizes ERNIE to avoid fitting the noisy labels and accordingly benefits entity typing.
+* The results on Open Entity are shown in Table 3.
+    (1) BERT and ERNIE achieve much higher recall scores than the previous entity typing models, which means pre-training language models make full use of both the unsupervised pre-training and manuallyannotated training data for better entity typing.
+    (2) Compared to BERT, ERNIE improves the precision by 2% and the recall by 2%, which means the informative entities help ERNIE predict the labels more precisely.
+
+* In summary, ERNIE effectively reduces the noisy label challenge in FIGER, which is a widely-used distantly supervised entity typing dataset, by injecting the information from KGs.
+* Besides, ERNIE also outperforms the baselines on Open Entity which has gold annotations.
+
+4.4 Relation Classification
+
+* To evaluate performance on this task, we fine-tune ERNIE on two well-established datasets 
+    * FewRel (Han et al., 2018c) 
+        * As the original experimental setting of FewRel is few-shot learning, we rearrange the FewRel dataset for the common relation classification setting. 
+        * we sample 100 instances from each class for the training set,
+        * and sample 200 instances for the development and test respectively.
+        * There are 80 classes in FewRel,
+    * TACRED (Zhang et al., 2017).
+        * there are 42 classes (including a special relation ?no relation?) in TACRED.
+* The statistics of these two datasets are shown in Table 4.
+
+* We compare our model with the following baseline models for relation classification:
+    * CNN. With a convolution layer, a max-pooling layer, and a non-linear activation layer,
+        * CNN gets the output sentence embedding, and then feeds it into a relation classifier.
+        * To better capture the position of head and tail entities, position embeddings are introduced into CNN (Zeng et al., 2015; Lin et al., 2016; Wu et al., 2017; Han et al., 2018b).
+    * PA-LSTM. Zhang et al. (2017) 
+        * introducing a position-aware attention mechanism over an LSTM network,
+        * which evaluates the relative contribution of each word in the sequence for the final sentence representation.
+    * C-GCN. Zhang et al. (2018) 
+        * adopt the graph convolution operations to model dependency trees for relation classification.
+        * To encode the word order and reduce the side effect of errors in dependency parsing, Contextualized GCN (C-GCN) firstly uses Bi-LSTM to generate contextualized representations as input for GCN models.
+* In addition to these three baselines, we also finetune BERT with the same input format introduced in Section 3.5 for fair comparison.
+
+* As FewRel does not have any null instance where there is not any relation between entities, we adopt macro averaged metrics to present the model performances.
+* Since FewRel is built by checking whether the sentences contain facts in Wikidata, we drop the related facts in KGs before pre-training for fair comparison.
+
+* From Table 5, we have two observations:
+    (1) As the training data does not have enough instances to train the CNN encoder from scratch, CNN just achieves an F1 score of 69:35%.
+        However, the pre-training models including BERT and ERNIE increase the F1 score by at least 15%.
+    (2) ERNIE achieves an absolute F1 increase of 3:4% over BERT,
+        which means fusing external knowledge is very effective.
+
+* In TACRED, there are nearly 80% null instances so that we follow the previous work (Zhang et al., 2017) to adopt micro averaged metrics to represent the model performances instead of the macro.
+* The results of CNN, PA-LSTM, and C-GCN come from the paper by Zhang et al. (2018), which are the best results of CNN, RNN, and GCN respectively.
+* From Table 5, we observe that:
+    (1) The C-GCN model outperforms the strong BERT model by an F1 increase of 0:4%, as C-GCN utilizes the dependency trees and the entity mask strategy.
+        The entity mask strategy refers to replacing each subject (and object similarly) entity with a special NER token, which is similar to our proposed pre-training task dEA.
+    (2) ERNIE achieves the best recall and F1 scores, and increases the F1 of BERT by nearly 2:0%,
+        which proves the effectiveness of the knowledgeable module for relation classification.
+
+* In conclusion, we find that the pre-trained language models can provide more information for relation classification than the vanilla encoder CNN and RNN.
+* And ERNIE outperforms BERT on both of the relation classification datasets, especially on the FewRel which has a much smaller training set. 
+* It demonstrates extra knowledge helps the model make full use of small training data, which is important for most NLP tasks as large-scale annotated data is unavailable.
+
+4.5 GLUE
+* the main benchmark used in Devlin et al. (2019).
+* we evaluate ERNIE on 8 datasets of GLUE and compare it with BERT.
+* In Table 6,
+    * we report the results of our evaluation submissions and those of BERT from the leaderboard.
+    * We notice that ERNIE is consistent with BERTBASE on big datasets like MNLI, QQP, QNLI, and SST-2.
+    * The results become more unstable on small datasets,
+        * ERNIE is better on CoLA and RTE, 
+        * but worse on STS-B and MRPC.
+    * In short,     ERNIE achieves comparable results with BERTBASE on GLUE.
+    * On the one hand, it means GLUE does not require external knowledge for language representation.
+    * On the other hand, it illustrates ERNIE does not lose the textual information after heterogeneous information fusion.
+
+4.6 Ablation Study
+* we explore the effects of the informative entities and the knowledgeable pretraining task (dEA) for ERNIE using FewRel dataset.
+* w/o entities and w/o dEA refer to finetuning ERNIE without entity sequence input and the pre-training task dEA respectively.
+* As shown in Table 7,
+    (1) Without entity sequence input, dEA still injects knowledge information into language representation during pre-training, which increases the F1 score of BERT by 0:9%.
+    (2) Although the informative entities bring much knowledge informa tion which intuitively benefits relation classification, ERNIE without dEA takes little advantage of this, leading to the F1 increase of 0:7%.
+
+5 Conclusion
+* we propose ERNIE to incorporate knowledge information into language representation models.
+* Accordingly, we propose the knowledgeable aggregator and the pre-training task dEA for better fusion of heterogeneous information from both text and KGs.
+* The experimental results demonstrate that ERNIE has better abilities of both denoising distantly supervised data and fine-tuning on limited data than BERT.
+* There are three important directions remain for future research:
+    (1) inject knowledge into feature-based pre-training models such as ELMo (Peters et al., 2018); 
+    (2) introduce diverse structured knowledge into language representation models such as ConceptNet (Speer and Havasi, 2012) which is different from the world knowledge database Wikidata; 
+    (3) annotate more real-world corpora heuristically for building larger pre-training data.
+

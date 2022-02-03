@@ -1662,3 +1662,212 @@ Except for setting the learning rate as 5e-5, we largely follow the pre-training
     (2) introduce diverse structured knowledge into language representation models such as ConceptNet (Speer and Havasi, 2012) which is different from the world knowledge database Wikidata; 
     (3) annotate more real-world corpora heuristically for building larger pre-training data.
 
+================================================================================
+ERNIE 3.0: Large-scale Knowledge Enhanced Pre-training for Language Understanding and Generation
+https://arxiv.org/abs/2107.02137
+================================================================================
+
+* contributions
+    * It fuses auto-regressive network and auto-encoding network,  so that the trained model can be easily tailored for both natural language understanding and generation tasks with zero-shot learning,  few-shot learning or fine-tuning.
+    * We trained the model with 10 billion parameters on a 4TB corpus consisting of plain texts and a large-scale knowledge graph.
+
+* Empirical results show that the model outperforms the state-of-the-art models on 54 Chinese NLP tasks,
+* and its English version achieves the first place on the SuperGLUE [3] benchmark (July 3,  2021),
+* surpassing the human performance by +0.8% (90.6% vs. 89.8%).
+
+* problems
+    * However, these large-scale pre-trained language models with hundreds of billions of parameters are trained on plain texts.
+        * Such raw texts lack explicit representation of knowledge such as linguistic knowledge and world knowledge.
+    * In addition, most large-scale models are trained in an auto-regressive way, but [6] shows that such models demonstrate poorer performance with traditional fine-tuning when adapting to downstream language understanding tasks.
+
+* to solve the problem caused by a single auto-regressive framework and to explore the performance of knowledge enhanced pre-trained models with large-scale parameters, we propose a unified framework called ERNIE 3.0 to train large-scale knowledge enhanced models on a 4TB corpus consisting of plain texts and a large-scale knowledge graph by fusing the auto-regressive network and the auto-encoding network.
+* The proposed ERNIE 3.0 can handle both natural language understanding tasks and natural language generation tasks through zero-shot learning, few-shot learning or fine-tuning.
+* Furthermore, the proposed framework supports the introduction of various customized tasks at any time.
+    * These tasks share the same encoding networks and are trained through multi-task learning.
+* when given a new task, our framework could incrementally train the distributed representations based on the previous training parameters, with no need to train them from scratch.
+
+3 ERNIE 3.0
+
+* figure 1 - architecture
+* the pre-training tasks spread three task paradigms,
+    * natural language understanding,
+    * natural language generation 
+    * knowledge extraction.
+* Therefore, ERNIE 3.0 innovatively designs a Continual Multi-Paradigms Unified Pre-training Framework to enable the collaborative pre-training among multi-task paradigms.
+
+3.1 Overview of ERNIE 3.0 Framework
+
+* Unlike the prevalent unified pre-training strategy of employing a shared Transformer network for different well-designed cloze tasks and utilizing specific self-attention masks to control what context the prediction conditions on,
+* ERNIE 3.0 designs a new Continual Multi-Paradigms Unified Pre-training Framework.
+    * We believed that 
+        * the different task paradigms of natural language processing depend on identical underlying abstract features consistently, such as lexical information and syntactic information, 
+        * but the requirements of top-level concrete features are incompatible, in which the natural language understanding tasks have the disposition to learn the semantic coherence while natural language generation tasks expect further contextual information.
+    * Therefore, inspired by the classical model architecture of multi-task learning, in which the lower layers are shared across all tasks while the top layers are task-specific,
+    * we proposed the ERNIE 3.0 to enable the different task paradigms to share the underlying abstract features learned in a shared network and utilizing the task-specific top-level concrete features learned in their own task-specific network respectively.
+    * ERNIE 3.0 exploits the continual multi-task learning framework introduced in ERNIE 2.0 [33].
+    * We refer to the backbone shared network and task-specific networks as the Universal Representation Module and Task-specific Representation Modules.
+    * mitigates the dilemma that large-scale pre-trained models are difficult to implement with limited time and hardware resources,
+        * it permits the models to only update the parameters of a task-specific representation network during the fine-tuning phase.
+    * ERNIE 3.0 employs the collaborative architecture of a Universal Representation Module and two Task-specific Representation Modules, namely natural language understanding (NLU) specific representation module and natural language generation (NLG) specific representation module.
+
+3.1.1 Universal Representation Module
+
+* uses a multi-layer Transformer-XL [34] as the backbone network
+* We refer to the backbone as Universal Representation Module and it is shared across all the task paradigms.
+* applied larger model
+* what needs special attention is that the memory module is only valid for natural language generation tasks while controlling the attention mask matrices.
+
+3.1.2 Task-specific Representation Module
+
+* the task-specific representation module is also a multi-layer Transformer-XL,
+* which is used to capture the top-level semantic representations for different task paradigms.
+* ERNIE 3.0 sets the task-specific representation module to a manageable size, that is a base model size, instead of the multi-layer perceptron or shallow Transformer commonly used in multi-task learning,
+* which will produce three obvious benefits,
+    * the first is that the base network has a stronger ability to capture semantic information than multi-layer perceptron and shallow Transformer; 
+    * the second is that the task-specific networks with base model size enable ERNIE 3.0 to distinguish the top-level semantic information among different task paradigms without significantly increasing the parameters of a large-scale model; 
+    * the smaller model size of a task-specific network than a shared network
+
+* ERNIE 3.0 constructs two task-specific representation modules: NLU and NLG
+    * in which the former is a bi-directional modeling network while the latter is a uni-directional modeling network.
+
+3.2 Pre-training Tasks
+
+3.2.1 Word-aware Pre-training Tasks
+
+* Knowledge Masked Language Modeling 
+    * ERNIE 1.0 [7] proposed an effective strategy to enhance representation through knowledge integration, namely Knowledge Integrated Masked Language Modeling task.
+    * It introduced phrase masking and named entity masking that predict the whole masked phrases and named entities to help the model learn the dependency information in both local contexts and global contexts.
+* Document Language Modeling 
+    * Generative pre-training models usually utilize traditional language model or sequence-to-sequence language model as the pre-training task,
+    * ERNIE 3.0 opt for traditional language model as the pre-training task to abate the network complexity and heighten the effectiveness of unified pre-training.
+* to enable the NLG network of ERNIE 3.0 to model longer text, we introduce the Enhanced Recurrence Memory Mechanism proposed in ERNIE-Doc [37], 
+    * which can model a larger effective context length than traditional recurrence Transformer by changing the shifting-one-layer-downwards recurrence to the same-layer recurrence.
+
+3.2.2 Structure-aware Pre-training Tasks
+
+* Sentence Reordering 
+    * which is introduced in ERNIE 2.0 [29],
+    * aims to train the model to learn the relationship between sentences by reorganizing permuted segments.
+    * At length, a given paragraph is randomly split into 1 to m segments during pre-training and all of the combinations are shuffled by a random permuted order.
+    * Then, the pre-trained model is asked to reorganize these permuted segments,
+    * modeled as a k-class classification problem where k = sum_n_to_m(n!)
+* Sentence Distance 
+    * which can be modeled as a 3-class classification problem.
+    * The three categories represent that the two sentences are adjacent, nonadjacent but in the same document and from two different documents respectively.
+
+3.2.3 Knowledge-aware Pre-training Tasks
+
+* Universal Knowledge-Text Prediction  (UKTP) task,
+    * which is an extension of knowledge masked language modeling.
+    * While knowledge masked language modeling only requires unstructured texts, universal knowledge-text prediction task requires both unstructured texts and knowledge graphs.
+    * figure 2
+    * Given a pair of triple from knowledge graph and the corresponding sentence from encyclopedia,
+        * we randomly mask relation in triple or words in a sentence.
+    * To predict the relation in the triple,
+        * the model needs to detect mentions of head entity and tail entity and determine semantic relationship that holds between them in the corresponding sentence.
+    * The essence of this process is similar to the distant supervision algorithm [40] in relation extraction tasks.
+    * The distant supervision algorithm assume that if two entities participate in a relation, any sentence that contain those two entities might express that relation.
+    * to predict words in the corresponding sentence, the model not only considers the dependency information in the sentence, but also logical relationship in the triple.
+    * Specifically, the procedure of obtaining pairs of a triple and this corresponding sentence is as follows:
+        * given a document from encyclopedia,
+        * we first find the candidate triples in the knowledge graph whose mentions of head entity or tail entity is title of the document,
+        * and then select triples from candidate triples whose mentions of head entity and tail entity are mentioned in the same sentence in the document.
+
+* ERNIE 3.0 
+    * trains the NLU network through knowledge masked language modeling to improve the capacity of capturing the lexical information,
+    * trains the sentence reordering task and the sentence distance discerning task to strengthen the ability of capturing the syntactic information,
+    * and finally optimizes the model with the universal knowledge-text prediction task to improve knowledge memorization and reasoning.
+    * trains the NLG network with the document language modeling task to enable various generation styles.
+
+3.3 Pre-training Process
+
+3.3.1 Pre-training Algorithm
+
+* Progressive training was originally proposed to improve stability, which starts from an efficient and small model and gradually increase the capacity [41].
+* Preliminary application of progressive training has been made on Transformer pre-training.
+* BERT([6]) designs a two-stage training with a reduced sequence length for the first 90% of updates.
+* [15] also gradually increase the batch size linearly from a small value to the full value.
+* we propose to adjust the training regularization factors in a more comprehensive and smooth way  by progressively and simultaneously increasing the training factors including the input sequence length, the batch size, the learning rate and the dropout rate.
+* In fact, it is common that Transformer models adopts the learning rate warm-up strategy to increase training stability and our improved progressive learning strategy is compatible to the existing strategy.
+
+3.3.2 Pre-training Data
+
+ * we construct a large-scale,  wide-variety and high-quality Chinese text corpora amounting to 4TB storage size in 11 different categories.
+  * To our best knowledge,  this is currently the largest Chinese pre-training corpora compared with 
+    * CLUECorpus2020 [45] (100GB),
+    * Chinese multi-modal pre-training data [21] (300GB),
+    * WuDaoCorpus2.0 used by CPM-2 [20] (2.3TB Chinese data and 300GB English data) 
+    * PanGu Corpus [22] (1.1TB).
+
+* we build the corpus for ERNIE 3.0 based on that 
+    * from ERNIE 2.0 (including baike, wikipedia, feed and etc),
+    * Baidu Search (including Baijiahao, Zhidao, Tieba, Experience),
+    * Web text,
+    * QA-long,
+    * QA-short,
+    * Poetry 2&Couplet 3,
+    * Domain-specific data from medical, law and financial area 
+    * Baidu knowledge graph with more than 50 million facts.
+
+* To improve the data quality, we adopt the following pre-processing strategies:
+    * Deduplication 
+        * is conducted on different granularities including character level, paragraph level and document level.
+        * On the character level, we replace consecutive identical characters (i.e., spaces, tabs, exclamation mark, question mark and etc) with one single character.
+        * One the paragraph level, we replace two identical consecutive paragraphs consisting of N sentences with one single paragraph where 0 < N < 100.
+        * The two aforementioned deduplication strategies are critical for ERNIE 3.0 to generate non-repeating contents.
+        * we adopted Message Digest Algorithm5 (MD5) to filter duplicate documents by comparing the sum of the MD5 of top-3 longest sentences from each document.
+    * Sentences with less than 10 words are filtered since they may be problematic or incomplete ones which contains limited semantic information for model pre-training.
+    * We further conduct sentence segmentation using regular expressions and word segmentation based on Baidu?s word segmentation tool.
+
+* Then, each dataset is multiplied by a user-defined multiplier number to increase the data diversity after truncating the data for NLU-network pre-training.
+
+3.3.3 Pre-training Settings
+
+* use Transformer-XL[34] structure as the backbone.
+* For the universal representation module
+    * 48 layers, 
+    * 4096 hidden units 
+    64 heads. 
+* For the task-specific representation modules
+    * 12 layers, 
+    * 768 hidden units 
+    * 12 heads. 
+* The total parameter of universal representation module and task-specific representation modules is 10 billion. 
+* The activation function used is GeLU[46]. 
+* The maximum sequence length of context and the memory length of language generation is set to 512 and 128, respectively. 
+* The total batch size of all pre-training tasks is set to 6144. 
+* We use Adam[47] 
+* learning rate of 1e-4, beta_1 = 0:9, beta_2 = 0:999, 
+* L2 weight decay of 0.01, 
+* learning rate warmup over the first 10,000 steps 
+* linear decay of the learning rate. 
+* In the first 10,000 steps, we also use the progressive learning to speedup convergence in the initial stage of pre-training. 
+* The model is trained for a total of 375 billion tokens 
+* 384 NVDIA v100 GPU cards 
+* is implemented on PaddlePaddle framework.
+* By virtue of parameter sharding used in [48, 49], we manage to reduce the memory usage of our model and address the problem of the total parameter of model exceeding the memory of a single GPU card.
+
+4 Experiments
+
+4.1 Evaluation Tasks
+* We executed extensive experiments on 54 NLP tasks 
+
+4.1.1 Natural Language Understanding Tasks
+* 45 datasets belonging to 14 kinds of natural language understanding tasks are used in our experiments, as follows:
+    * Sentiment Analysis: NLPCC2014-SC 6, SE-ABSA16_PHNS 7, SE-ABSA16_CAME, BDCI2019 8.
+    * Opinion extraction: COTE-BD [50], COTE-DP [50], COTE-MFW [50].
+    * Natural Language Inference: XNLI [51], OCNLI [45], CMNLI [45].
+    * Winograd Schema Challenge CLUEWSC2020 [45].
+    * Relation Extraction: FinRE [52], SanWen [53].
+    * Event Extraction: CCKS2020 9.
+    * Semantic Similarity: AFQMC [45], LCQMC [54], CSL [45], PAWS-X [55], BQ Corpus [56].
+    * Chinese News Classification: TNEWS 10, IFLYTEK [57], THUCNEWS 11, CNSE [58], CNSS [58].
+    * Closed-Book Question Answering: NLPCC-DBQA 12, CHIP2019, cMedQA [59], cMedQA2 [60], CKBQA13, WebQA [61].
+    * Named Entity Recognition: CLUENER [45], Weibo [62], OntoNotes [63], CCKS2019 14.
+    * Machine Reading Comprehension: CMRC 2018 [64], CMRC2019 [65], DRCD [66], DuReader [67], Dureaderrobust [68], Dureaderchecklist, Dureaderyesno15, C3 [69], CHID [70].
+    * Legal Documents Analysis: CAIL2018-Task1 [71], CAIL2018-Task2 [71].
+    * Cant Understanding: DogWhistle Insider, DogWhistle Outsider[72].
+    * Document Retrieval: Sogou-log [73].
+
+4.1.2 Natural Language Generation Tasks
+
